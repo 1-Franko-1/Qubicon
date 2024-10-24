@@ -3,4 +3,5 @@ groq
 datetime
 aiohttp
 gtts
+pillow
 flask
