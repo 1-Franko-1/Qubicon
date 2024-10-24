@@ -1,0 +1,7 @@
+discord
+groq
+datetime
+aiohttp
+PIL
+gtts
+flask
