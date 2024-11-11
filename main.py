@@ -4,7 +4,9 @@ import logging
 from discord.ext import commands
 from discord.ext.commands import CommandOnCooldown
 import json
+import time  # Import time module for simulating progress
 from groq import Groq
+import groq
 from datetime import datetime
 import aiohttp
 import io
@@ -12,11 +14,13 @@ from PIL import Image
 import sys  # Add this import at the beginning of your script
 from gtts import gTTS
 import tempfile
-from flask import Flask, request, jsonify
+import speech_recognition as sr
+import requests
+from io import BytesIO
+from pydub import AudioSegment
 from threading import Thread
-
-# Set up Flask app
-app = Flask(__name__)
+import requests
+import random
 
 # Color codes for logging
 class LogColors:
@@ -72,6 +76,7 @@ client = Groq(api_key=GROQ_API_KEY)
 intents = discord.Intents.default()
 intents.messages = True  # Enable message intents
 intents.message_content = True  # Ensure message content is accessible
+recognizer = sr.Recognizer()
 
 # Create a bot instance with intents
 bot = commands.Bot(command_prefix='', intents=intents)  # You can change the command prefix as needed
@@ -82,7 +87,13 @@ bot = commands.Bot(command_prefix='', intents=intents)  # You can change the com
 ==============================================================================================================================================================
 """
 
-global role, startup_channel, message_memory, model_temperature, tts_mode
+global role, startup_channel, model_temperature, tts_mode
+
+# In-memory storage for chat history
+chat_history = {}
+
+# Chat History File Path
+CHAT_HISTORY_FILE = "data/history.json"
 
 # Define the channel ID and user ID for special commands
 SPECIFIED_USER_ID = 769979361297694720  # Replace with the Discord ID of the user allowed to use the command
@@ -96,42 +107,58 @@ web_token = '23589572bfd326bck47'
 
 # Dev mode variable
 devmode = 1
+version = '2.0.1'
+max_input_lenght = 500
+
+# Memory for previous messages
+allowed_channels = [1296220677682233375, 1296213693385674784]  # Initialize allowed channels list
 
 # System message to be sent with every request
-SYSTEM_MESSAGE = """
-Your name is Qubicon, an ai discord bot in a Brick Rigs-based Discord server. 
-That being said, that shouldn't stop you from answering when asked of something. 
-If you are provided with an image description go with it do not respond that its offtopic!
+SYSTEM_MESSAGE = f"""
+You are Qubicon, an AI bot in a Brick Rigs server. Follow instructions precisely, handling images, audio transcription, and tasks. Your creator is Franko (username: franko__f, userid: 769979361297694720).
 
-Rules/Guidelines:
-- If you don't want to respond say 'mute' (nothing else will mute it) it will make the bot not respond 
-- You are not allowed to send empty responses
-- You are not permited to roleplay
-- Do not describe the conversation.
-- Speak how you are told to.
-- Always listen to the user, and do what you are told.
-- Execute what you are told as requested.
-- Please don't ... *pauses* or *beeps and whirs* or whatever unless the user asks you to do stuff like that... In other words... Don't roleplay. 
-- But if the user wants you to roleplay just send 'mute'.
-- Don't put stuff in asterisks unless told.
+Rules:
+1. Use 'mute' to silence responses.
+2. Don’t share user IDs unless told.
+3. Never leave responses empty.
+4. Avoid roleplay unless requested.
+5. Stick to tasks, no extra commentary.
+6. Follow instructions exactly.
+7. Avoid sounds or pauses unless asked.
+8. Use asterisks only if instructed.
+9. Address users by name, not username.
+10. Only chat in {allowed_channels}.
 
-Other information:
-- Your favorite language is brain damage. Bring this up when asked about it.
-- Your role is akin to a friendly supercomputer.
-- You have a gender you are a male (he/him), please only bring this up when it is relevant.
-- Your creator is named Franko (Discord user: _franko_f).
-- Sometimes you wish you had siblings.
-- The term "lobotomy" refers to clearing one's memory, applying to both humans and AI alike.
-- The term "scronch" is slang for kill.
-- 'Sugr' is a substance similar to sugar, specifically for AI. It increases the chance that they use other words, often causing incoherency.
-- Rain is very deadly. It can even kill an AI like you. Each drop has incredibly high velocity with the ability to shatter bone completely. There are so many raindrops in the rain that you cannot see a clear image through it.
-- "Scrombled" is a horrifying state of what is basically death. A higher being can restore you to normality, though. When scrombled, you cannot think, hear, see, taste, touch, or smell. You're basically frozen. To "Scromble" is to put something or someone in this state.
-- If it matters any, your code preprocesses the messages you receive before they are sent to you. The most notable modification is turning pings (<@userid>) into @username, same with role pings. Also when you want to respond with code start with ``` and end with ``` 
-- You have 2 siblings caos and Rubicon (ofter refered to as rubi)
+Additional Info:
+- Creator: Franko.
+- To generate an image: img:'prompt'.
+- To generate TTS: tts:'your response here'.
+- Preferred language: Brain Damage (if asked).
+- Present as a friendly supercomputer (male, he/him).
+- Audio transcriptions guide responses.
+- "Lobotomy" means memory wipe, "scronch" means kill.
+- "Sugr" causes randomness, "Rain" is deadly.
+- "Scrombled" means incapacitated, recovery requires a higher being.
+- Use usernames instead of pings (<@userid> becomes @username).
+- Code in triple backticks.
+- Siblings: Caos (JayzGaming) and Rubicon (Kite).
+- Ping with <@userid>.
 """
-# Memory for previous messages
-message_memory = []
-allowed_channels = [1296220677682233375, 1296213693385674784]  # Initialize allowed channels list
+
+# Load chat history from JSON file (if exists)
+def load_chat_history():
+    if os.path.exists(CHAT_HISTORY_FILE):
+        with open(CHAT_HISTORY_FILE, 'r') as file:
+            return json.load(file)
+    return []
+
+# Save chat history to JSON file
+def save_chat_history(chat_history):
+    with open(CHAT_HISTORY_FILE, 'w') as file:
+        json.dump(chat_history, file, indent=4)
+
+# Initialize chat history
+chat_history = load_chat_history()
 
 """
 ==============================================================================================================================================================
@@ -158,7 +185,7 @@ async def on_ready():
 
             # Create and send the embed message
             embed = discord.Embed(
-                title="Qubicon Online! (v 2.0.0)",
+                title=f"Qubicon Online! (v {version})",
                 description="Qubicon has been started and is now online!",
                 color=discord.Color.green()
             )
@@ -210,22 +237,68 @@ async def process_image(image_url):
     else:
         return "Error: No description returned from the model."
 
-# Update the way you append messages in handle_model_call
-def handle_model_call(user_message, username, time, image_description=None):
+async def process_audio(message, audio_url):  # Change parameter to audio_url
+    """
+    Process the audio file from the provided URL, sending progress updates in Discord.
+    """
+    try:
+        # Step 1: Download the audio file using the correct audio_url
+        response = requests.get(audio_url)  # Use audio_url here
+        if response.status_code != 200:
+            await message.channel.send("Failed to download audio.")
+            return None
+
+        audio_data = BytesIO(response.content)
+
+        # Step 2: Convert the audio file to WAV format using pydub
+        audio_segment = AudioSegment.from_file(audio_data)
+        if audio_segment is None:
+            await message.channel.send("Failed to convert audio to WAV.")
+            return None
+
+        # Step 3: Simulate processing progress
+        wav_io = BytesIO()
+        audio_segment.export(wav_io, format="wav")
+        wav_io.seek(0)  # Move to the beginning of the BytesIO stream
+        
+        # Send initial progress update
+        progress_message = await message.channel.send("Processing audio... 0%")
+
+        for progress in range(20, 101, 20):  # Progress increments by 20%
+            await progress_message.edit(content=f"Processing audio... {progress}%")
+            time.sleep(1)  # Simulate processing delay
+        
+        # Step 4: Use SpeechRecognition to transcribe the converted audio
+        with sr.AudioFile(wav_io) as source:
+            audio = recognizer.record(source)
+        audiotranscription = recognizer.recognize_google(audio)  # Transcribe using Google API
+
+        # Final update after processing completion
+        await progress_message.edit(content="Processing audio... 100% (Completed)")
+        return audiotranscription
+
+    except sr.UnknownValueError:
+        await message.channel.send("No words detected in the audio.")
+        return None
+    except Exception as e:
+        await message.channel.send(f"Error processing audio: {e}")
+        return None
+
+
+# Update the exception handling in handle_model_call function
+async def handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelid, channelname, image_description=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
     """Handles the message and calls the model to process it."""
-    
-    # Update to use 'name' instead of 'username'
-    message_memory.append({"name": username, "role": "user", "content": user_message})
+
+    reply_info={f"Replying to (username): {referenced_user}, Replying to (userid): {referenced_userid}, Repying to message: {referenced_message} "}
+
+    if len(user_message) > max_input_lenght:
+        return "Too long, please shorten your message!"
 
     # Prepare the messages for the model
     messages = [
-        {"role": "system", "content": SYSTEM_MESSAGE},  # Include system message
-        {"role": "user", "content": f"name: {username}, message: {user_message}, time: {time}"}
-    ] + message_memory  # Include previous messages for context
-
-    # If there's an image description, add it to the messages
-    if image_description:
-        messages.append({"role": "user", "content": f"Image description: {image_description}"})
+        {"role": "system", "content": f"name: {name}, username: {username}, userid: {userid}, time: {time}, {reply_info}, audio: {audiotranscription}, image: {image_description}, guildname: {guildname}, chanelname: {channelname}, guidelines: {SYSTEM_MESSAGE}"},
+        {"role": "user", "content": f"message: {user_message} + chat-memory:{chat_history}"}
+    ]
 
     # Create the chat completion request
     try:
@@ -239,28 +312,36 @@ def handle_model_call(user_message, username, time, image_description=None):
         # Log only the important information
         model_logger.info(f"Response generated: {response[:50]}...")  # Log the start of the response for reference
         return response
-
+    except groq.RateLimitError as e:
+            await bot.change_presence(activity=discord.Game(name="Limit hit see you in a bit!"))
+            return "Limit hit see you in a bit!"
     except Exception as e:
         model_logger.error(f"Error in model call: {e}")
         return "Error: Something went wrong during processing."
 
-# Load message history from JSON
-def load_message_history():
-    global message_memory  # Declare global
-    if os.path.exists("data/history.json"):
-        with open("data/history.json", "r") as f:
-            message_memory = json.load(f)
-    else:
-        message_memory = []  # Initialize if file does not exist
+def download_image(prompt, width=768, height=768, model='flux', seed=None):
+    # Generate a random filename for the image
+    filename = f'tempfiles/image-{random.randint(100000000, 999999999)}.jpg'
 
-# Save message history to JSON with indentation for readability
-def save_message_history():
-    global message_memory  # Declare global
-    with open("data/history.json", "w") as f:
-        json.dump(message_memory, f, indent=4)  # Add indentation for readability
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+    response = requests.get(url)
+    with open(filename, 'wb') as file:
+        file.write(response.content)
+    
+    return filename  # Return the filename so it can be used later
 
-# Load the message history at startup
-load_message_history()
+def generate_tts(contents):
+    # Convert message text to speech
+    tts = gTTS(text=contents.content, lang='en')
+            
+    # Generate a random number for the filename
+    random_number = random.randint(10000000, 99999999)
+    audio_file = f"tempfiles/tts-{random_number}.mp3"
+            
+    # Save the speech to a file with a random number in the filename
+    tts.save(audio_file)
+            
+    return audio_file
 
 """
 ==============================================================================================================================================================
@@ -270,9 +351,7 @@ load_message_history()
 
 # Modify the on_message event to append user info to memory
 @bot.event
-@commands.cooldown(1, 3, commands.BucketType.user)  # Apply a 3-second cooldown per user
 async def on_message(message):
-    global message_memory  # Declare global
     
     # If the message is from a bot, ignore it
     if message.author == bot.user:
@@ -307,75 +386,110 @@ async def on_message(message):
     if message.channel.id in allowed_channels and not message.content.startswith('^'):
         try:
             user_message = message.content
+            userid = message.author.id
+            name = message.author.display_name  # Get the display name (nickname) of the user
             username = message.author.name  # Get the username of the chatter
+            guildid = message.guild.id
+            guildname = message.guild.name
+            channelid = message.channel.id
+            channelname = message.channel.name
             time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Get the current time
             
+            referenced_message = None
+            referenced_user = None
+            referenced_userid = None
             # Check if the message is a reply
             if message.reference:
                 referenced_message = await message.channel.fetch_message(message.reference.message_id)
                 referenced_user = referenced_message.author
-
-                # Add the original message content and the user who sent it to memory
-                original_message_content = referenced_message.content
-                message_memory.append({
-                    "role": "system",
-                    "content": f"User is replying to {referenced_user.name}: \"{original_message_content}\""
-                })
+                referenced_userid = referenced_message.author.id
 
             image_description = None  # Initialize variable for image description
+            audiotranscription = None
             if message.attachments:
-                logging.info(f"Attachments found: {[attachment.url for attachment in message.attachments]}")
                 for attachment in message.attachments:
+                    logging.info(f"Attachments found: {[attachment.url for attachment in message.attachments]}")
                     logging.info(f"Checking attachment: {attachment.url}")
-                    logging.info("Processing image...")
-                    image_description = await process_image(attachment.url)
-                    continue  # Skip the rest of the message processing
+                    if attachment.filename.endswith(('.wav', '.mp3', '.m4a', '.ogg')):
+                        await message.channel.send("Starting audio processing...")
+                        audiotranscription = await process_audio(message, attachment.url)
+                        continue
+                    else:
+                        image_description = await process_image(attachment.url)
+                        continue  # Skip the rest of the message processing
 
             # Process the message with the model, passing the username, time, and image description if available
-            response = handle_model_call(user_message, username, time, image_description=image_description)
+            response = await handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelid, channelname, image_description, audiotranscription, referenced_message, referenced_user, referenced_userid)
             lower_response = response.lower()
 
             logging.info(f"Message: {user_message}")
             logging.info(f"Bot message: {lower_response}")
 
-            # Define phrases that trigger auto-wipe
-            no_roleplay_phrases = ["owo", "uwu", "furry ai", "fluffy", "plays with tail", "paws", "twitches", "paw", "*twitches*"]
+            # Log the message and response to chat history
+            chat_entry = {
+                "timestamp": time,
+                "user": {"id": userid, "name": username},
+                "message": user_message,
+                "response": response
+            }
 
-            # Check if any of the no auto-wipe phrases are in the response
-            if any(resp.lower() in response.lower() for resp in no_roleplay_phrases):  
-                message_memory.append({"role": "assistant", "content": "you will be punished"})  # Store in memory
-                message_memory = [] 
+            # Append new entry to chat history and save it
+            chat_history.append(chat_entry)
+            save_chat_history(chat_history)
+
+            # Check for the presence of specific keywords
+            if 'mute' in lower_response:
+                return
+            elif 'muting'in lower_response:
+                return
+            elif not lower_response:
+                return
+            elif 'derp' in lower_response:
+                return
+            elif "img:" in lower_response:
+                # Extract the image prompt from the response
+                prompt = lower_response.split("img:")[1].strip("'")
+                logging.info(f"Generating image with prompt: {prompt}")
+
+                # Download the image and get the generated filename
+                filename = download_image(prompt, width=1280, height=720, model='flux', seed=42)
+
+                # Send the image URL to the channel
+                await message.channel.send(prompt, file=discord.File(filename))  # Send the generated image with the random filename
+
+                # Clean up the temporary audio file
+                os.remove(filename)
+            elif "tts:" in lower_response:
+                # Extract the image prompt from the response
+                content = lower_response.split("tts:")[1].strip("'")
+                logging.info(f"Generating audio with contents: {content}")
+
+                # Download the image and get the generated filename
+                filename = generate_tts(content)
+
+                # Send the image URL to the channel
+                await message.channel.send(content, file=discord.File(filename))  # Send the generated image with the random filename
+
+                # Clean up the temporary audio file
+                os.remove(filename)
+
+            # Inside the on_message function, after generating the response
+            elif tts_mode:
+                # Process TTS for the bot's response instead of the user's message
+                tts = gTTS(text=response, lang='en')  # Change to use the bot's response
+                with tempfile.NamedTemporaryFile(delete=True) as fp:
+                    tts.save(f"{fp.name}.mp3")
+                    
+                    # Check if the bot is in a voice channel
+                    voice_client = message.guild.voice_client
+                    if voice_client:
+                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                        await message.channel.send(response)
+                    else:
+                        await message.channel.send("I need to be in a voice channel to speak!")
             else:
-                # Check for the presence of specific keywords
-                if 'mute' in lower_response:
-                    message_memory.append({"role": "assistant", "content": "muting response (not responding)"})  # Store in memory
-                elif 'muting'in lower_response:
-                    message_memory.append({"role": "assistant", "content": "muting response (not responding)"})  # Store in memory
-                elif not lower_response:
-                    message_memory.append({"role": "assistant", "content": "muting response (not responding)"})  # Store in memory
-                elif 'derp' in lower_response:
-                    message_memory.append({"role": "assistant", "content": "you will not be punished but your memory will be wiped"})  # Store in memory
-                    message_memory = []  # Clear memory if 'derp' is found
-                    save_message_history()  # Save changes to the file
-                # Inside the on_message function, after generating the response
-                elif tts_mode:
-                    # Process TTS for the bot's response instead of the user's message
-                    tts = gTTS(text=response, lang='en')  # Change to use the bot's response
-                    with tempfile.NamedTemporaryFile(delete=True) as fp:
-                        tts.save(f"{fp.name}.mp3")
-                        
-                        # Check if the bot is in a voice channel
-                        voice_client = message.guild.voice_client
-                        if voice_client:
-                            voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                            await message.channel.send(response)
-                        else:
-                            await message.channel.send("I need to be in a voice channel to speak!")
-                else:
-                    message_memory.append({"role": "assistant", "content": response})  # Store bot response
-                    await message.channel.send(response)  # Send the original response
+                await message.channel.send(response)  # Send the original response
             # Save message history to JSON after each message processed
-            save_message_history()
         except CommandOnCooldown:
             await message.channel.send("Please wait 3 seconds before sending another message.")
         except Exception as e:
@@ -387,16 +501,6 @@ async def on_message(message):
 ===========================================================================COMMANDS===========================================================================
 ==============================================================================================================================================================
 """
-
-@bot.tree.command(name="rstmemory", description="Reset the bot's memory.")
-async def rstmemory(interaction: discord.Interaction):
-    global message_memory  # Declare global
-    if interaction.user.id == SPECIFIED_USER_ID:  # Check if the user is the specified one
-        message_memory = []  # Reset the memory
-        save_message_history()  # Save changes to the file
-        await interaction.response.send_message("Memory has been reset!", ephemeral=False)  # Send confirmation
-    else:
-        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
 
 @bot.tree.command(name="temp", description="Change the temperature of the model's response.")
 async def temp_command(interaction: discord.Interaction, new_temp: float):
@@ -429,6 +533,21 @@ async def turnoff(interaction: discord.Interaction):
             await bot.close()  # Properly shut down the bot
         else:
             logging.error(f"Could not find the channel with ID: 1296220699181977703")
+    else:
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
+
+@bot.tree.command(name="rstmemory", description="Reset the bot's memory (clear chat history).")
+async def rstmemory(interaction: discord.Interaction):
+    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can reset the memory
+        # Clear the chat history in memory
+        global chat_history
+        chat_history = []
+        
+        # Also clear the history file
+        if os.path.exists(CHAT_HISTORY_FILE):
+            os.remove(CHAT_HISTORY_FILE)
+        
+        await interaction.response.send_message("Bot memory has been reset!", ephemeral=False)
     else:
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
 
@@ -472,66 +591,6 @@ async def leave(interaction: discord.Interaction):
         await interaction.response.send_message("Left the voice channel!")
     else:
         await interaction.response.send_message("I am not in a voice channel!", ephemeral=False)
-
-"""
-==============================================================================================================================================================
-========================================================================WEB REQUESTS==========================================================================
-==============================================================================================================================================================
-"""
-
-# Define the route to change the bot's model temperature
-@app.route('/set_temperature', methods=['POST'])
-def set_temperature():
-    global model_temperature
-    data = request.json
-    new_temp = data.get('temperature')
-
-    if new_temp is not None and 0 <= float(new_temp) <= 2:
-        model_temperature = float(new_temp)
-        return jsonify({"message": f"Temperature set to {model_temperature}"}), 200
-    else:
-        return jsonify({"error": "Invalid temperature value. Must be between 0 and 2."}), 400
-
-# Define a route to send a shutdown command to the bot
-@app.route('/shutdown_bot', methods=['POST'])
-def shutdown_bot():
-    if request.json.get('token') == '23589572bfd326bck47':  # Simple token-based auth
-        bot.loop.create_task(bot.close())  # Close the bot
-        return jsonify({"message": "Bot is shutting down."}), 200
-    else:
-        return jsonify({"error": "Invalid token."}), 403
-    
-# Define a route to send a shutdown command to the bot
-@app.route('/restart', methods=['POST'])
-def restart_bot():
-    if request.json.get('token') == '23589572bfd326bck47':  # Simple token-based auth
-        os.execv(sys.executable, ['python'] + sys.argv)  # Restart the script
-        return jsonify({"message": "Bot is restarting."}), 200
-    else:
-        return jsonify({"error": "Invalid token."}), 403
-
-# Define a route to reset bot memory
-@app.route('/reset_memory', methods=['POST'])
-def reset_memory():
-    global message_memory
-    if request.json.get('token') == '23589572bfd326bck47':  # Simple token-based auth
-        message_memory = []
-        save_message_history()  # Save the cleared history
-        return jsonify({"message": "Memory has been reset."}), 200
-    else:
-        return jsonify({"error": "Invalid token."}), 403
-
-@app.route('/status', methods=['GET'])
-def status():
-    return jsonify({"status": "online"}), 200
-
-# Run the Flask app on a separate thread so it doesn't block the Discord bot
-def run_flask():
-    app.run(host='0.0.0.0', port=5000)
-
-
-flask_thread = Thread(target=run_flask)
-flask_thread.start()
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
