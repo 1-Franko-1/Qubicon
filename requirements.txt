@@ -1,7 +1,10 @@
-discord
+discord.py
+opencv-python
 groq
-datetime
 aiohttp
-gtts
-pillow
-flask
+Pillow
+gTTS
+SpeechRecognition
+requests
+yt-dlp
+pydub
