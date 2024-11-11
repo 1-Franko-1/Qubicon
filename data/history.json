@@ -1,1 +1,1010 @@
-[]
+[
+    {
+        "timestamp": "2024-11-11 23:25:29",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "<@1200274292768780519>",
+        "response": "Hello, what can I help you with?"
+    },
+    {
+        "timestamp": "2024-11-11 23:28:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate a message and add a copy of it in tts",
+        "response": "Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today? \ntts:\"Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today?\""
+    },
+    {
+        "timestamp": "2024-11-11 23:28:33",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate a message and add a copy of it in image",
+        "response": "Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today? \nimg:\"A friendly robot with a screen displaying Kite & Rubicons' Adventures logo\""
+    },
+    {
+        "timestamp": "2024-11-11 23:29:31",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate a message and add a copy of it in tts",
+        "response": "Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today? \ntts:\"Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today?\""
+    },
+    {
+        "timestamp": "2024-11-11 23:29:49",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate a message and add a copy of it in tts",
+        "response": "Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today? \ntts:\"Hello, I'm Qubicon. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today?\""
+    },
+    {
+        "timestamp": "2024-11-11 23:31:12",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "i can transfer my boy",
+        "response": "Hello Franko, what do you mean by transferring your boy?"
+    },
+    {
+        "timestamp": "2024-11-11 23:32:49",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "<@1248333588319961190> <@1248333588319961190> <@1248333588319961190>  give me a tts message",
+        "response": "Hello Kite, it seems like you're trying to get my attention. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today? \ntts:\"Hello Kite, it seems like you're trying to get my attention. I'm here to help with Kite & Rubicons' Adventures. What would you like to do today?\""
+    },
+    {
+        "timestamp": "2024-11-11 23:32:53",
+        "user": {
+            "id": 1248333588319961190,
+            "name": "caos"
+        },
+        "message": "You want a TTS (text-to-speech) message, right? What would you like the message to be?",
+        "response": "Hello JayzGaming, you want a TTS message, right? What would you like the message to be?"
+    },
+    {
+        "timestamp": "2024-11-11 23:32:57",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "srsy",
+        "response": "JayzGaming, what can I help you with?"
+    },
+    {
+        "timestamp": "2024-11-11 23:33:46",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "<@1248333588319961190> <@1248333588319961190> <@1248333588319961190>  give me a tts message about rubicon",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:33:47",
+        "user": {
+            "id": 1248333588319961190,
+            "name": "caos"
+        },
+        "message": "thinking",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:34:18",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "i hate rate limits",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:35:32",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "qubi do you like limits?",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:41:26",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Hello, what can I help you with?"
+    },
+    {
+        "timestamp": "2024-11-11 23:41:35",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:43:34",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "hey chat gpt give me some audio about marbles",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:44:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:46:42",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Error: Something went wrong during processing."
+    },
+    {
+        "timestamp": "2024-11-11 23:47:24",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:49:01",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:49:49",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:49:50",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:49:54",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:50:29",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "<@1248333588319961190> <@1248333588319961190> <@1248333588319961190>  caos can you give me a tts about groq rate limits?",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:50:30",
+        "user": {
+            "id": 1248333588319961190,
+            "name": "caos"
+        },
+        "message": "thinking",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:52:28",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:54:47",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "ehehehehehehe",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:55:00",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "import british lafe",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:55:47",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "trolling",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:56:09",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "thats not an image, rubicon.",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:56:10",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:56:20",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "haahaha",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-11 23:57:26",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "humerous rubeercon.,",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:57:53",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:57:56",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:12",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "so this works",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:16",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "w",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:17",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "t",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:25",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "k-y-s",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:29",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "lmfao",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:36",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "testacular cancer",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-11 23:59:50",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:00:40",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:00:46",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:01:39",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:03",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Pong!",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:16",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "hm",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:20",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:37",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Pong!",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:43",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:45",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "why does it keep thinking its conneced",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:54",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Pong!",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:02:59",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Pong!",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:02",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "now its not doing that",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:05",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "rubicon",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:06",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "what the fuck",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:13",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Pong!",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:24",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:46",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:46",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:03:49",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:04:00",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "there we gfo.",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:05:33",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:06:07",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:06:12",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:06:17",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:06:33",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:06:40",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "testacular cancer",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:07:00",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:07:01",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:07:03",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:08:06",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:08:11",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:08:12",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "https://cdn.discordapp.com/attachments/1264758947345203280/1296732533957853194/togif.gif",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:09:01",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:09:03",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:09:08",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "https://cdn.discordapp.com/attachments/1264758947345203280/1296732533957853194/togif.gif",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:09:15",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:09:21",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "https://cdn.discordapp.com/attachments/1264758947345203280/1296732533957853194/togif.gif",
+        "response": "test"
+    },
+    {
+        "timestamp": "2024-11-12 00:10:23",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:10:38",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:10:43",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "rubi tunes..",
+        "response": "test img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:10:44",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "https://cdn.discordapp.com/attachments/1264758947345203280/1296732533957853194/togif.gif",
+        "response": "test img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:11:21",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:11:29",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:11:36",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "test",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:13:04",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:13:31",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:13:48",
+        "user": {
+            "id": 1233989039405793291,
+            "name": "Rubicon"
+        },
+        "message": "Test",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:14:12",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:16:57",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:17:03",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:17:45",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:17:55",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:25:27",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:25:36",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate me an image of sigma",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:25:57",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "goober",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:27:14",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "we need qubi text gen back",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:27:23",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "you can have dum-e",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:27:24",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "rate limit",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:27:29",
+        "user": {
+            "id": 1200274292768780519,
+            "name": "kalthelunatic"
+        },
+        "message": "it synced its stuff",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:29:53",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:30:00",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:30:16",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "test",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:30:36",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "i made it have a lower line cout and work better",
+        "response": "test tts:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:30:54",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "test img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:31:03",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "testacular cancer?",
+        "response": "test img:\"test\""
+    },
+    {
+        "timestamp": "2024-11-12 00:31:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Hello Franko, what can I help you with?"
+    },
+    {
+        "timestamp": "2024-11-12 00:31:46",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "sasfa",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-12 00:31:51",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "shiittt",
+        "response": "Limit hit see you in a bit!"
+    },
+    {
+        "timestamp": "2024-11-12 00:32:07",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "this was the keyword for the nuclear strike simulator",
+        "response": "Limit hit see you in a bit!"
+    }
+]

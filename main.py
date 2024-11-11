@@ -69,7 +69,7 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 # Define your Discord bot token and other environment variables
-GROQ_API_KEY = os.getenv("GROQ_3")  # Make sure to set this environment variable
+GROQ_API_KEY = os.getenv("GROQ")  # Make sure to set this environment variable
 DISCORD_TOKEN = os.getenv("QB_TOKEN")  # Include if necessary
 
 # Initialize the Groq client
@@ -295,23 +295,21 @@ async def process_audio(message, audio_url):  # Change parameter to audio_url
         await message.channel.send(f"Error processing audio: {e}")
         return None
 
+"""
+    # Old one if the new one doesn't work
+    messages = [
+        {"role": "system", "content": f"name:{name}, username:{username}, userid:{userid}, time:{time}, {reply_info}, audio:{audiotranscription}, img:{image_description}, guild:{guildname}, channel:{channelname}, guidelines:{SYSTEM_MESSAGE}, history:{chat_history}"},
+        {"role": "user", "content": f"message: {user_message}"}
+    ]
+"""
 
 # Update the exception handling in handle_model_call function
 async def handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelid, channelname, image_description=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
     """Handles the message and calls the model to process it."""
-
     reply_info={f"Replying to (username): {referenced_user}, Replying to (userid): {referenced_userid}, Repying to message: {referenced_message} "}
 
     if len(user_message) > max_input_lenght:
         return "Too long, please shorten your message!"
-
-    """
-        # Old one if the new one doesn't work
-        messages = [
-            {"role": "system", "content": f"name:{name}, username:{username}, userid:{userid}, time:{time}, {reply_info}, audio:{audiotranscription}, img:{image_description}, guild:{guildname}, channel:{channelname}, guidelines:{SYSTEM_MESSAGE}, history:{chat_history}"},
-            {"role": "user", "content": f"message: {user_message}"}
-        ]
-    """
 
     # Prepare the messages for the model
     messages = [
@@ -368,85 +366,69 @@ async def generate_tts(contents):
 
 @bot.event
 async def on_message(message):
-    
-    # If the bot is in lockdown mode, don't respond to any messages
-    if lockdown:
-        if message.author.id != SPECIFIED_USER_ID:
+    try:
+        if lockdown and message.author.id != SPECIFIED_USER_ID:
             return
 
-    # If the message is from a bot, ignore it
-    if message.author == bot.user:
-        return
+        if message.author == bot.user:
+            return
 
-    # Check if the bot was pinged in the message
-    if message.author.id == SPECIFIED_USER_ID:
-        if message.channel.id not in allowed_channels:
+        if message.author.id == SPECIFIED_USER_ID and message.channel.id not in allowed_channels:
             if message.content.startswith('^QUBIT^'):
                 allowed_channels.append(message.channel.id)
                 logging.info(f"Added channel {message.channel.id} to allowed_channels: {allowed_channels}")
                 await message.channel.send(f"This channel has been added to the allowed channels list.")
+                return
 
-    # Handle specific shutdown messages for Qubicon
-    if message.content.lower() in ['turn off qubicon', 'pull the plug on qubi', 'send qubi to london']:
-        if message.author.id == SPECIFIED_USER_ID:
-            if startup_channel:
-                # Create and send the embed message
-                embed = discord.Embed(
-                    title="Qubicon Offline!",
-                    description="Qubicon has been shut down and is now offline!",
-                    color=discord.Color.red()  # You can choose any color you like
-                )
-                await startup_channel.send(embed=embed)
-                await message.channel.send("Proceeding to brutally murder Qubicon")
-                await bot.close()  # Properly shut down the bot
-        else:
-            await message.channel.send("Wtf no, fuck off jackass.")
-            return  # Stop further processing
-        
-    # Check if the message is in the designated channel and is allowed
-    if message.channel.id in allowed_channels and not message.content.startswith('^'):
-        try:
+        if message.content.lower() in ['turn off qubicon', 'pull the plug on qubi', 'send qubi to london']:
+            if message.author.id == SPECIFIED_USER_ID:
+                if startup_channel:
+                    embed = discord.Embed(
+                        title="Qubicon Offline!",
+                        description="Qubicon has been shut down and is now offline!",
+                        color=discord.Color.red()
+                    )
+                    await startup_channel.send(embed=embed)
+                    await message.channel.send("Proceeding to brutally murder Qubicon")
+                    await bot.close()  # Properly shut down the bot
+                return
+            else:
+                await message.channel.send("Wtf no, fuck off jackass.")
+                return
+
+        # Process the message if it's in allowed channels
+        if message.channel.id in allowed_channels and not message.content.startswith('^'):
             user_message = message.content
+            time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Get the current time
+
+            audio_transcription = None
+            image_description = None
+            if message.attachments:
+                for attachment in message.attachments:
+                    logging.info(f"Checking attachment: {attachment.url}")
+                    if attachment.filename.endswith(('.wav', '.mp3', '.m4a', '.ogg')):
+                        await message.channel.send("Starting audio processing...")
+                        audio_transcription = await process_audio(message, attachment.url)
+                    else:
+                        image_description = await process_image(attachment.url)
+
             userid = message.author.id
-            name = message.author.display_name  # Get the display name (nickname) of the user
-            username = message.author.name  # Get the username of the chatter
+            username = message.author.name
             guildid = message.guild.id
             guildname = message.guild.name
             channelid = message.channel.id
             channelname = message.channel.name
-            time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Get the current time
-            
-            referenced_message = None
-            referenced_user = None
-            referenced_userid = None
-            # Check if the message is a reply
-            if message.reference:
-                referenced_message = await message.channel.fetch_message(message.reference.message_id)
-                referenced_user = referenced_message.author
-                referenced_userid = referenced_message.author.id
 
-            image_description = None  # Initialize variable for image description
-            audiotranscription = None
-            if message.attachments:
-                for attachment in message.attachments:
-                    logging.info(f"Attachments found: {[attachment.url for attachment in message.attachments]}")
-                    logging.info(f"Checking attachment: {attachment.url}")
-                    if attachment.filename.endswith(('.wav', '.mp3', '.m4a', '.ogg')):
-                        await message.channel.send("Starting audio processing...")
-                        audiotranscription = await process_audio(message, attachment.url)
-                        continue
-                    else:
-                        image_description = await process_image(attachment.url)
-                        continue  # Skip the rest of the message processing
+            response = await handle_model_call(
+                message.author.display_name, user_message, username, time, userid,
+                guildid, guildname, channelid, channelname, image_description, audio_transcription,
+                referenced_message=None, referenced_user=None, referenced_userid=None
+            )
 
-            # Process the message with the model, passing the username, time, and image description if available
-            response = await handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelid, channelname, image_description, audiotranscription, referenced_message, referenced_user, referenced_userid)
-            lower_response = response.lower()
-
+            # Log the message and response
             logging.info(f"Message: {user_message}")
-            logging.info(f"Bot message: {lower_response}")
+            logging.info(f"Bot message: {response}")
 
-            # Log the message and response to chat history
             chat_entry = {
                 "timestamp": time,
                 "user": {"id": userid, "name": username},
@@ -454,164 +436,111 @@ async def on_message(message):
                 "response": response
             }
 
-            # Append new entry to chat history and save it
             chat_history.append(chat_entry)
+
+            # Save chat history
             save_chat_history(chat_history)
 
-            # Check for the presence of specific keywords
-            if 'mute' in lower_response:
-                return
-            elif 'muting' in lower_response:
-                return
-            elif not lower_response:
-                return
-            elif 'derp' in lower_response:
-                return
+            lower_response = response.lower()
 
-            # Separate img and tts handling if both appear in the message
-            if 'img:' in lower_response and 'tts:' in lower_response:
-                img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
-                tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
-                botmsg2 = lower_response.split('img:"')[0].strip('"')
-                botmsg = botmsg2.split('tts:"')[0].strip('"')
+            if 'img:' in lower_response or 'tts:' in lower_response:
+                img_prompt = None
+                tts_text = None
+                botmsg = None
+                img_filename = None
+                tts_filename = None
 
-                logging.info(f"Generating image with prompt: {img_prompt}")
-                img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux', seed=42)
-                
-                logging.info(f"Generating TTS audio with text: {tts_text}")
-                tts_filename = await generate_tts(tts_text)
+                if 'img:' in lower_response:
+                    img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
+                    botmsg = lower_response.split('img:"')[0].strip('"')
+
+                if 'tts:' in lower_response:
+                    tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
+                    botmsg = lower_response.split('tts:"')[0].strip('"')
+
+                if img_prompt:
+                    logging.info(f"Generating image with prompt: {img_prompt}")
+                    img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux', seed=42)
+
+                if tts_text:
+                    logging.info(f"Generating TTS audio with text: {tts_text}")
+                    tts_filename = await generate_tts(tts_text)
 
                 if tts_mode:
                     if botmsg:
-                        tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
+                        tts = gTTS(text=botmsg, lang='en')
                         with tempfile.NamedTemporaryFile(delete=True) as fp:
                             tts.save(f"{fp.name}.mp3")
-                            
+
                             # Check if the bot is in a voice channel
                             voice_client = message.guild.voice_client
                             if voice_client:
-                                # If audio is already playing, skip voice playback and send the response to chat
                                 if voice_client.is_playing():
-                                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
-                                    os.remove(img_filename)
-                                    os.remove(tts_filename)
+                                    # Send TTS and image if both exist
+                                    files_to_send = []
+                                    if img_filename:
+                                        files_to_send.append(discord.File(img_filename))
+                                    if tts_filename:
+                                        files_to_send.append(discord.File(tts_filename))
+                                    await message.channel.send(botmsg, files=files_to_send)
+
+                                    # Clean up
+                                    if img_filename:
+                                        os.remove(img_filename)
+                                    if tts_filename:
+                                        os.remove(tts_filename)
                                 else:
                                     voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
-                                    os.remove(img_filename)
-                                    os.remove(tts_filename)
+                                    # Send TTS and image if both exist
+                                    files_to_send = []
+                                    if img_filename:
+                                        files_to_send.append(discord.File(img_filename))
+                                    if tts_filename:
+                                        files_to_send.append(discord.File(tts_filename))
+                                    await message.channel.send(botmsg, files=files_to_send)
+
+                                    # Clean up
+                                    if img_filename:
+                                        os.remove(img_filename)
+                                    if tts_filename:
+                                        os.remove(tts_filename)
                             else:
                                 await message.channel.send("I need to be in a voice channel to speak!")
+                    else:
+                        files_to_send = []
+                        if img_filename:
+                            files_to_send.append(discord.File(img_filename))
+                        if tts_filename:
+                            files_to_send.append(discord.File(tts_filename))
+                        await message.channel.send(botmsg, files=files_to_send)
+
+                        # Clean up
+                        if img_filename:
+                            os.remove(img_filename)
+                        if tts_filename:
+                            os.remove(tts_filename)
                 else:
-                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
-                    os.remove(img_filename)
-                    os.remove(tts_filename)
+                    files_to_send = []
+                    if img_filename:
+                        files_to_send.append(discord.File(img_filename))
+                    if tts_filename:
+                        files_to_send.append(discord.File(tts_filename))
+                    await message.channel.send(botmsg, files=files_to_send)
+
+                    # Clean up
+                    if img_filename:
+                        os.remove(img_filename)
+                    if tts_filename:
+                        os.remove(tts_filename)
             else:
-                # Separate checks for img: and tts: and handle them first
-                if 'img:' in lower_response:
-                    # Extract the image prompt from the response
-                    botmsg = lower_response.split('img:"')[0].strip('"')
-                    prompt = lower_response.split('img:"')[1].split('"')[0].strip()  # Get content after 'tts:"' and before the next '"'
+                await message.channel.send(response)
 
-                    logging.info(f"Generating image with prompt: {prompt}")
-
-                    # Generate image based on the clean prompt
-                    filename = await generate_image(prompt, width=1280, height=720, model='flux', seed=42)
-
-                    if tts_mode:
-                        # Generate TTS audio for the bot's response instead of the user's message
-                        if botmsg:
-                            tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
-                            with tempfile.NamedTemporaryFile(delete=True) as fp:
-                                tts.save(f"{fp.name}.mp3")
-                                
-                                # Check if the bot is in a voice channel
-                                voice_client = message.guild.voice_client
-                                if voice_client:
-                                    # If audio is already playing, skip voice playback and send the response to chat
-                                    if voice_client.is_playing():
-                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                                        os.remove(filename)
-                                    else:
-                                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                                        os.remove(filename)
-                                else:
-                                    await message.channel.send("I need to be in a voice channel to speak!")
-                        else:
-                            await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                            os.remove(filename)
-                    else:
-                        # Send the generated TTS file
-                        await message.channel.send(botmsg, file=discord.File(filename))
-                        os.remove(filename)
-                elif 'tts:' in lower_response:
-                    # Extract the image prompt from the response
-                    botmsg = lower_response.split('tts:"')[0].strip('"')
-                    prompt = lower_response.split('tts:"')[1].split('"')[0].strip()  # Get content after 'tts:"' and before the next '"'
-
-                    logging.info(f"Generating audio with prompt: {prompt}")
-
-                    # Generate TTS based on the clean content
-                    filename = await generate_tts(prompt)
-
-                    if tts_mode:
-                        # Generate TTS audio for the bot's response instead of the user's message
-                        if botmsg:
-                            tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
-                            with tempfile.NamedTemporaryFile(delete=True) as fp:
-                                tts.save(f"{fp.name}.mp3")
-                                
-                                # Check if the bot is in a voice channel
-                                voice_client = message.guild.voice_client
-                                if voice_client:
-                                    # If audio is already playing, skip voice playback and send the response to chat
-                                    if voice_client.is_playing():
-                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                                        os.remove(filename)
-                                    else:
-                                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                                        os.remove(filename)
-                                else:
-                                    await message.channel.send("I need to be in a voice channel to speak!")
-                        else:
-                            await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
-                            os.remove(filename)
-                    else:
-                        # Send the generated TTS file
-                        await message.channel.send(botmsg, file=discord.File(filename))
-                        os.remove(filename)
-
-                # Only if TTS mode is enabled and no img: or tts: are in the response
-                elif tts_mode:
-                    # Generate TTS audio for the bot's response instead of the user's message
-                    tts = gTTS(text=response, lang='en')  # Create TTS for bot's response
-                    with tempfile.NamedTemporaryFile(delete=True) as fp:
-                        tts.save(f"{fp.name}.mp3")
-                        
-                        # Check if the bot is in a voice channel
-                        voice_client = message.guild.voice_client
-                        if voice_client:
-                            # If audio is already playing, skip voice playback and send the response to chat
-                            if voice_client.is_playing():
-                                await message.channel.send(response)
-                            else:
-                                # Play the TTS audio file
-                                voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                await message.channel.send(response)
-                        else:
-                            await message.channel.send("I need to be in a voice channel to speak!")
-                else:
-                    await message.channel.send(response)  # Send the original response
-
-            # Save message history to JSON after each message processed
-        except CommandOnCooldown:
-            await message.channel.send("Please wait 3 seconds before sending another message.")
-        except Exception as e:
-            logging.error(f"Error processing message: {e}")
-            await message.channel.send("An error occurred while processing your message.")
-
+    except CommandOnCooldown:
+        await message.channel.send("Please wait 3 seconds before sending another message.")
+    except Exception as e:
+        logging.error(f"Error processing message: {e}")
+        await message.channel.send("An error occurred while processing your message.")
+            
 """
 ==============================================================================================================================================================
 ===========================================================================COMMANDS===========================================================================
