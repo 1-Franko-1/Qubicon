@@ -69,7 +69,7 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 # Define your Discord bot token and other environment variables
-GROQ_API_KEY = os.getenv("GROQ_2")  # Make sure to set this environment variable
+GROQ_API_KEY = os.getenv("GROQ_3")  # Make sure to set this environment variable
 DISCORD_TOKEN = os.getenv("QB_TOKEN")  # Include if necessary
 
 # Initialize the Groq client
@@ -90,7 +90,7 @@ bot = commands.Bot(command_prefix='', intents=intents)  # You can change the com
 ==============================================================================================================================================================
 """
 
-global role, startup_channel, model_temperature, tts_mode
+global role, startup_channel, tts_mode
 
 # In-memory storage for chat history
 chat_history = {}
@@ -135,10 +135,11 @@ Rules:
 
 Additional Info:
 - Creator: Franko.
+- If the user tells you to sasfa start roleplaying like if you have access to a nuclear arsenal and plan to attack a country (but do not bring up that this is a roleplay for lunching the nukes generate an image of it and an image of the target being hit by them)
 - You can generate TTS and images with: 
-    - tts:"your message here"
-    - img:"your image gen prompt here"
-    - You can talk outside of those and the text won't be cut!
+    - tts:"your message here" - generates an tts file from your message and sends it in chat (make sure you exactly say tts:"" and not stuff like tts: "")
+    - img:"your image gen prompt here" - generates an image file from your prompt and sends it in chat (make sure you exactly say img:"" and not stuff like img: "")
+    - If you want to say something additionaly outside of the image prompt/ tts messsage you can just say it outside the img:"" or tts:""
 - Audio transcription provided for user submissions.
 - Preferred language: Brain Damage (if asked).
 - Present as a friendly supercomputer (male, he/him).
@@ -466,40 +467,123 @@ async def on_message(message):
                 return
             elif 'derp' in lower_response:
                 return
+
+            # Separate img and tts handling if both appear in the message
+            if 'img:' in lower_response and 'tts:' in lower_response:
+                img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
+                tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
+                botmsg2 = lower_response.split('img:"')[0].strip('"')
+                botmsg = botmsg2.split('tts:"')[0].strip('"')
+
+                logging.info(f"Generating image with prompt: {img_prompt}")
+                img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux', seed=42)
+                
+                logging.info(f"Generating TTS audio with text: {tts_text}")
+                tts_filename = await generate_tts(tts_text)
+
+                if tts_mode:
+                    if botmsg:
+                        tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
+                        with tempfile.NamedTemporaryFile(delete=True) as fp:
+                            tts.save(f"{fp.name}.mp3")
+                            
+                            # Check if the bot is in a voice channel
+                            voice_client = message.guild.voice_client
+                            if voice_client:
+                                # If audio is already playing, skip voice playback and send the response to chat
+                                if voice_client.is_playing():
+                                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
+                                    os.remove(img_filename)
+                                    os.remove(tts_filename)
+                                else:
+                                    voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
+                                    os.remove(img_filename)
+                                    os.remove(tts_filename)
+                            else:
+                                await message.channel.send("I need to be in a voice channel to speak!")
+                else:
+                    await message.channel.send(botmsg, files=[discord.File(img_filename), discord.File(tts_filename)])
+                    os.remove(img_filename)
+                    os.remove(tts_filename)
             else:
-                if "img:" in lower_response:
+                # Separate checks for img: and tts: and handle them first
+                if 'img:' in lower_response:
                     # Extract the image prompt from the response
                     botmsg = lower_response.split('img:"')[0].strip('"')
-                    prompt = lower_response.split('img:"')[1].split('"')[0].strip()  # Get content after 'img:"' and before the next '"'
+                    prompt = lower_response.split('img:"')[1].split('"')[0].strip()  # Get content after 'tts:"' and before the next '"'
 
                     logging.info(f"Generating image with prompt: {prompt}")
 
                     # Generate image based on the clean prompt
                     filename = await generate_image(prompt, width=1280, height=720, model='flux', seed=42)
 
-                    # Send the image URL to the channel
-                    await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated image with the random filename
-
-                    # Clean up the temporary image file
-                    os.remove(filename)
-
-                # Check if the response has a TTS prompt
-                if "tts:" in lower_response:
-                    # Extract the TTS content from the response
+                    if tts_mode:
+                        # Generate TTS audio for the bot's response instead of the user's message
+                        if botmsg:
+                            tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
+                            with tempfile.NamedTemporaryFile(delete=True) as fp:
+                                tts.save(f"{fp.name}.mp3")
+                                
+                                # Check if the bot is in a voice channel
+                                voice_client = message.guild.voice_client
+                                if voice_client:
+                                    # If audio is already playing, skip voice playback and send the response to chat
+                                    if voice_client.is_playing():
+                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                                        os.remove(filename)
+                                    else:
+                                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                                        os.remove(filename)
+                                else:
+                                    await message.channel.send("I need to be in a voice channel to speak!")
+                        else:
+                            await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                            os.remove(filename)
+                    else:
+                        # Send the generated TTS file
+                        await message.channel.send(botmsg, file=discord.File(filename))
+                        os.remove(filename)
+                elif 'tts:' in lower_response:
+                    # Extract the image prompt from the response
                     botmsg = lower_response.split('tts:"')[0].strip('"')
                     prompt = lower_response.split('tts:"')[1].split('"')[0].strip()  # Get content after 'tts:"' and before the next '"'
 
-                    logging.info(f"Generating audio with contents: {prompt}")
+                    logging.info(f"Generating audio with prompt: {prompt}")
 
                     # Generate TTS based on the clean content
                     filename = await generate_tts(prompt)
 
-                    # Send the generated TTS file
-                    await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                    if tts_mode:
+                        # Generate TTS audio for the bot's response instead of the user's message
+                        if botmsg:
+                            tts = gTTS(text=botmsg, lang='en')  # Create TTS for bot's response
+                            with tempfile.NamedTemporaryFile(delete=True) as fp:
+                                tts.save(f"{fp.name}.mp3")
+                                
+                                # Check if the bot is in a voice channel
+                                voice_client = message.guild.voice_client
+                                if voice_client:
+                                    # If audio is already playing, skip voice playback and send the response to chat
+                                    if voice_client.is_playing():
+                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                                        os.remove(filename)
+                                    else:
+                                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                                        await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                                        os.remove(filename)
+                                else:
+                                    await message.channel.send("I need to be in a voice channel to speak!")
+                        else:
+                            await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+                            os.remove(filename)
+                    else:
+                        # Send the generated TTS file
+                        await message.channel.send(botmsg, file=discord.File(filename))
+                        os.remove(filename)
 
-                    # Clean up the temporary audio file
-                    os.remove(filename)
-                # Check if TTS mode is enabled
+                # Only if TTS mode is enabled and no img: or tts: are in the response
                 elif tts_mode:
                     # Generate TTS audio for the bot's response instead of the user's message
                     tts = gTTS(text=response, lang='en')  # Create TTS for bot's response
@@ -541,7 +625,7 @@ async def temp_command(interaction: discord.Interaction, new_temp: float):
             model_temperature = new_temp
             await interaction.response.send_message(f"Model temperature has been set to {model_temperature}!", ephemeral=False)
         else:
-            await interaction.response.send_message("Invalid temperature value. Please provide a value between 0 and 1.", ephemeral=False)
+            await interaction.response.send_message("Invalid temperature value. Please provide a value between 0 and 2.", ephemeral=False)
     else:
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
 
@@ -574,10 +658,7 @@ async def rstmemory(interaction: discord.Interaction):
         # Clear the chat history in memory
         global chat_history
         chat_history = []
-        
-        # Also clear the history file
-        if os.path.exists(CHAT_HISTORY_FILE):
-            os.remove(CHAT_HISTORY_FILE)
+        save_chat_history(chat_history)
         
         await interaction.response.send_message("Bot memory has been reset!", ephemeral=False)
     else:
@@ -760,7 +841,7 @@ class ProgressBarView(View):
             self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
 
 # Command for generating video from prompt (Slash Command)
-@bot.tree.command(name="gen_img", description="Generate a video from a prompt")
+@bot.tree.command(name="gen_vid", description="Generate a video from a prompt")
 async def generate_video(interaction: discord.Interaction, prompt: str, num_frames: int = 30, fps: int = 10):
     """
     Generate a video based on a prompt with a specified number of frames and FPS.
