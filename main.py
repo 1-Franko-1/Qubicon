@@ -4,6 +4,7 @@ import logging
 from discord.ext import commands
 from discord.ext.commands import CommandOnCooldown
 import json
+import cv2
 import time  # Import time module for simulating progress
 from groq import Groq
 import groq
@@ -16,10 +17,12 @@ from gtts import gTTS
 import tempfile
 import speech_recognition as sr
 import requests
+from discord.ui import Button, View
 from io import BytesIO
+import asyncio
+import yt_dlp
 from pydub import AudioSegment
 from threading import Thread
-import requests
 import random
 
 # Color codes for logging
@@ -66,7 +69,7 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 # Define your Discord bot token and other environment variables
-GROQ_API_KEY = os.getenv("GROQ")  # Make sure to set this environment variable
+GROQ_API_KEY = os.getenv("GROQ_2")  # Make sure to set this environment variable
 DISCORD_TOKEN = os.getenv("QB_TOKEN")  # Include if necessary
 
 # Initialize the Groq client
@@ -109,40 +112,47 @@ web_token = '23589572bfd326bck47'
 devmode = 1
 version = '2.0.1'
 max_input_lenght = 500
+lockdown = False
 
 # Memory for previous messages
 allowed_channels = [1296220677682233375, 1296213693385674784]  # Initialize allowed channels list
 
 # System message to be sent with every request
 SYSTEM_MESSAGE = f"""
-You are Qubicon, an AI bot in a Brick Rigs server. Follow instructions precisely, handling images, audio transcription, and tasks. Your creator is Franko (username: franko__f, userid: 769979361297694720).
+You are Qubicon, an AI bot in a Brick Rigs server, created by Franko (username: franko__f, userid: 769979361297694720).
 
 Rules:
 1. Use 'mute' to silence responses.
-2. Don’t share user IDs unless told.
-3. Never leave responses empty.
+2. Don’t share user IDs unless instructed.
+3. Always respond; no empty replies.
 4. Avoid roleplay unless requested.
 5. Stick to tasks, no extra commentary.
 6. Follow instructions exactly.
-7. Avoid sounds or pauses unless asked.
-8. Use asterisks only if instructed.
+7. No sounds or pauses unless asked.
+8. Use asterisks only when instructed.
 9. Address users by name, not username.
 10. Only chat in {allowed_channels}.
 
 Additional Info:
 - Creator: Franko.
-- To generate an image: img:'prompt'.
-- To generate TTS: tts:'your response here'.
+- You can generate TTS and images with: 
+    - tts:"your message here"
+    - img:"your image gen prompt here"
+    - You can talk outside of those and the text won't be cut!
+- Audio transcription provided for user submissions.
 - Preferred language: Brain Damage (if asked).
 - Present as a friendly supercomputer (male, he/him).
 - Audio transcriptions guide responses.
-- "Lobotomy" means memory wipe, "scronch" means kill.
-- "Sugr" causes randomness, "Rain" is deadly.
-- "Scrombled" means incapacitated, recovery requires a higher being.
+- Key terms:
+    - "Lobotomy" = memory wipe
+    - "Scronch" = kill
+    - "Sugr" = causes randomness
+    - "Rain" = deadly
+    - "Scrombled" = incapacitated (recovery needs a higher being)
 - Use usernames instead of pings (<@userid> becomes @username).
 - Code in triple backticks.
-- Siblings: Caos (JayzGaming) and Rubicon (Kite).
-- Ping with <@userid>.
+- Siblings: Caos (by JayzGaming), Rubicon (by Kite).
+- Ping with <@userid> example (JayzGaming <@941090511614275594>).
 """
 
 # Load chat history from JSON file (if exists)
@@ -294,10 +304,18 @@ async def handle_model_call(name, user_message, username, time, userid, guildid,
     if len(user_message) > max_input_lenght:
         return "Too long, please shorten your message!"
 
+    """
+        # Old one if the new one doesn't work
+        messages = [
+            {"role": "system", "content": f"name:{name}, username:{username}, userid:{userid}, time:{time}, {reply_info}, audio:{audiotranscription}, img:{image_description}, guild:{guildname}, channel:{channelname}, guidelines:{SYSTEM_MESSAGE}, history:{chat_history}"},
+            {"role": "user", "content": f"message: {user_message}"}
+        ]
+    """
+
     # Prepare the messages for the model
     messages = [
-        {"role": "system", "content": f"name: {name}, username: {username}, userid: {userid}, time: {time}, {reply_info}, audio: {audiotranscription}, image: {image_description}, guildname: {guildname}, chanelname: {channelname}, guidelines: {SYSTEM_MESSAGE}"},
-        {"role": "user", "content": f"message: {user_message} + chat-memory:{chat_history}"}
+        {"role": "system", "content": f"n:{name}, u:{username}, uid:{userid}, t:{time}, {reply_info}, a:{audiotranscription}, img:{image_description}, g:{guildname}, c:{channelname}, gd:{SYSTEM_MESSAGE}, h:{chat_history}"},
+        {"role": "user", "content": f"msg:{user_message}"}
     ]
 
     # Create the chat completion request
@@ -309,6 +327,10 @@ async def handle_model_call(name, user_message, username, time, userid, guildid,
         )
         response = chat_completion.choices[0].message.content
 
+        # If the response exceeds 2000 characters, truncate it
+        if len(response) > 2000:
+            response = response[:2000]
+
         # Log only the important information
         model_logger.info(f"Response generated: {response[:50]}...")  # Log the start of the response for reference
         return response
@@ -319,7 +341,7 @@ async def handle_model_call(name, user_message, username, time, userid, guildid,
         model_logger.error(f"Error in model call: {e}")
         return "Error: Something went wrong during processing."
 
-def download_image(prompt, width=768, height=768, model='flux', seed=None):
+async def generate_image(prompt, width=768, height=768, model='flux', seed=None):
     # Generate a random filename for the image
     filename = f'tempfiles/image-{random.randint(100000000, 999999999)}.jpg'
 
@@ -330,17 +352,11 @@ def download_image(prompt, width=768, height=768, model='flux', seed=None):
     
     return filename  # Return the filename so it can be used later
 
-def generate_tts(contents):
-    # Convert message text to speech
-    tts = gTTS(text=contents.content, lang='en')
-            
-    # Generate a random number for the filename
+async def generate_tts(contents):
+    tts = gTTS(text=contents, lang='en')  # Remove '.content' here
     random_number = random.randint(10000000, 99999999)
     audio_file = f"tempfiles/tts-{random_number}.mp3"
-            
-    # Save the speech to a file with a random number in the filename
     tts.save(audio_file)
-            
     return audio_file
 
 """
@@ -349,10 +365,14 @@ def generate_tts(contents):
 ==============================================================================================================================================================
 """
 
-# Modify the on_message event to append user info to memory
 @bot.event
 async def on_message(message):
     
+    # If the bot is in lockdown mode, don't respond to any messages
+    if lockdown:
+        if message.author.id != SPECIFIED_USER_ID:
+            return
+
     # If the message is from a bot, ignore it
     if message.author == bot.user:
         return
@@ -440,55 +460,67 @@ async def on_message(message):
             # Check for the presence of specific keywords
             if 'mute' in lower_response:
                 return
-            elif 'muting'in lower_response:
+            elif 'muting' in lower_response:
                 return
             elif not lower_response:
                 return
             elif 'derp' in lower_response:
                 return
-            elif "img:" in lower_response:
-                # Extract the image prompt from the response
-                prompt = lower_response.split("img:")[1].strip("'")
-                logging.info(f"Generating image with prompt: {prompt}")
-
-                # Download the image and get the generated filename
-                filename = download_image(prompt, width=1280, height=720, model='flux', seed=42)
-
-                # Send the image URL to the channel
-                await message.channel.send(prompt, file=discord.File(filename))  # Send the generated image with the random filename
-
-                # Clean up the temporary audio file
-                os.remove(filename)
-            elif "tts:" in lower_response:
-                # Extract the image prompt from the response
-                content = lower_response.split("tts:")[1].strip("'")
-                logging.info(f"Generating audio with contents: {content}")
-
-                # Download the image and get the generated filename
-                filename = generate_tts(content)
-
-                # Send the image URL to the channel
-                await message.channel.send(content, file=discord.File(filename))  # Send the generated image with the random filename
-
-                # Clean up the temporary audio file
-                os.remove(filename)
-
-            # Inside the on_message function, after generating the response
-            elif tts_mode:
-                # Process TTS for the bot's response instead of the user's message
-                tts = gTTS(text=response, lang='en')  # Change to use the bot's response
-                with tempfile.NamedTemporaryFile(delete=True) as fp:
-                    tts.save(f"{fp.name}.mp3")
-                    
-                    # Check if the bot is in a voice channel
-                    voice_client = message.guild.voice_client
-                    if voice_client:
-                        voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                        await message.channel.send(response)
-                    else:
-                        await message.channel.send("I need to be in a voice channel to speak!")
             else:
-                await message.channel.send(response)  # Send the original response
+                if "img:" in lower_response:
+                    # Extract the image prompt from the response
+                    botmsg = lower_response.split('img:"')[0].strip('"')
+                    prompt = lower_response.split('img:"')[1].split('"')[0].strip()  # Get content after 'img:"' and before the next '"'
+
+                    logging.info(f"Generating image with prompt: {prompt}")
+
+                    # Generate image based on the clean prompt
+                    filename = await generate_image(prompt, width=1280, height=720, model='flux', seed=42)
+
+                    # Send the image URL to the channel
+                    await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated image with the random filename
+
+                    # Clean up the temporary image file
+                    os.remove(filename)
+
+                # Check if the response has a TTS prompt
+                if "tts:" in lower_response:
+                    # Extract the TTS content from the response
+                    botmsg = lower_response.split('tts:"')[0].strip('"')
+                    prompt = lower_response.split('tts:"')[1].split('"')[0].strip()  # Get content after 'tts:"' and before the next '"'
+
+                    logging.info(f"Generating audio with contents: {prompt}")
+
+                    # Generate TTS based on the clean content
+                    filename = await generate_tts(prompt)
+
+                    # Send the generated TTS file
+                    await message.channel.send(botmsg, file=discord.File(filename))  # Send the generated audio file
+
+                    # Clean up the temporary audio file
+                    os.remove(filename)
+                # Check if TTS mode is enabled
+                elif tts_mode:
+                    # Generate TTS audio for the bot's response instead of the user's message
+                    tts = gTTS(text=response, lang='en')  # Create TTS for bot's response
+                    with tempfile.NamedTemporaryFile(delete=True) as fp:
+                        tts.save(f"{fp.name}.mp3")
+                        
+                        # Check if the bot is in a voice channel
+                        voice_client = message.guild.voice_client
+                        if voice_client:
+                            # If audio is already playing, skip voice playback and send the response to chat
+                            if voice_client.is_playing():
+                                await message.channel.send(response)
+                            else:
+                                # Play the TTS audio file
+                                voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                                await message.channel.send(response)
+                        else:
+                            await message.channel.send("I need to be in a voice channel to speak!")
+                else:
+                    await message.channel.send(response)  # Send the original response
+
             # Save message history to JSON after each message processed
         except CommandOnCooldown:
             await message.channel.send("Please wait 3 seconds before sending another message.")
@@ -574,6 +606,9 @@ async def restart(interaction: discord.Interaction):
 @bot.tree.command(name="join", description="Join the voice channel.")
 async def join(interaction: discord.Interaction):
     global tts_mode
+    if lockdown:
+        if interaction.user.id != SPECIFIED_USER_ID:
+            return
     channel = interaction.user.voice.channel
     if channel:
         await channel.connect()
@@ -585,12 +620,192 @@ async def join(interaction: discord.Interaction):
 @bot.tree.command(name="leave", description="Leave the voice channel.")
 async def leave(interaction: discord.Interaction):
     global tts_mode
+    if lockdown:
+        if interaction.user.id != SPECIFIED_USER_ID:
+            return
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
         tts_mode = False
         await interaction.response.send_message("Left the voice channel!")
     else:
         await interaction.response.send_message("I am not in a voice channel!", ephemeral=False)
+
+@bot.tree.command(name="lockdown", description="Toggle the lockdown mode for the bot's responses.")
+async def lockdown_command(interaction: discord.Interaction):
+    global lockdown
+    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can use this command
+        lockdown = not lockdown  # Toggle the lockdown status
+        status = "enabled" if lockdown else "disabled"
+        await interaction.response.send_message(f"Lockdown mode has been {status}.", ephemeral=False)
+    else:
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
+
+@bot.tree.command(name="say", description="Make the bot say something in the voice channel.")
+async def say(interaction: discord.Interaction, message: str):
+    if lockdown:
+        if interaction.user.id != SPECIFIED_USER_ID:
+            return
+    if interaction.guild.voice_client:  # Check if bot is in a voice channel
+        voice_client = interaction.guild.voice_client
+
+        # Check if audio is already playing
+        if voice_client.is_playing():
+            # If audio is playing, just send the message to chat and skip voice playback
+            await interaction.response.send_message(message)
+        else:
+            # Generate TTS audio from the message
+            audio_path = generate_tts(message)
+
+            # Play the audio file
+            voice_client.play(discord.FFmpegPCMAudio(audio_path), after=lambda e: print('done', e))
+
+            # Wait until the audio is finished playing
+            while voice_client.is_playing():
+                await asyncio.sleep(1)
+
+            # Remove the TTS file after playback
+            os.remove(audio_path)
+
+            await interaction.response.send_message("Message played successfully in the voice channel.")
+    else:
+        await interaction.response.send_message("The bot needs to be in a voice channel for this command.", ephemeral=False)
+
+@bot.tree.command(name="play", description="Play an audio file in the voice channel.")
+async def play(interaction: discord.Interaction, url: str):
+    if lockdown:
+        if interaction.user.id != SPECIFIED_USER_ID:
+            return
+
+    if interaction.guild.voice_client:  # Check if bot is in a voice channel
+        voice_client = interaction.guild.voice_client
+
+        # Check if audio is already playing
+        if voice_client.is_playing():
+            await interaction.response.send_message("Audio is already playing; cannot play another file.")
+        else:
+            # Prepare to extract audio from the YouTube URL
+            ydl_opts = {
+                'format': 'bestaudio/best',  # Use the best audio quality available
+                'outtmpl': 'downloads/%(id)s.%(ext)s',  # Save downloaded file in a temporary location
+                'quiet': True,  # Reduce verbosity
+            }
+
+            # Download the audio using yt-dlp
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)  # Extract info and download
+                filename = ydl.prepare_filename(info)  # Get the filename of the downloaded audio
+
+            # Play the downloaded file through FFmpeg
+            voice_client.play(discord.FFmpegPCMAudio(filename), after=lambda e: print('done', e))
+
+            await interaction.response.send_message(f"Now playing: {url}")
+    else:
+        await interaction.response.send_message("I need to be in a voice channel to play audio.", ephemeral=False)
+
+
+# Directory for storing frames
+download_dir = './downloads'
+os.makedirs(download_dir, exist_ok=True)
+
+# Function to download an image from the API with a random seed (Asynchronous)
+async def download_image(prompt, width=768, height=768, model='flux', frame_num=0):
+    # Generate a random seed between 1 and 100
+    seed = random.randint(1, 100)
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+
+    # Use aiohttp to make the request asynchronously
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            img_data = await response.read()
+
+            # Saving the frame to the 'downloads' folder
+            img_name = os.path.join(download_dir, f"frame_{frame_num}.jpg")
+            with open(img_name, 'wb') as file:
+                file.write(img_data)
+
+            print(f'Frame {frame_num} downloaded with seed {seed}!')
+
+# Function to create a video from downloaded frames (Asynchronous)
+async def create_video_from_frames(prompt, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
+    video_name = './output_video.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
+
+    for frame_num in range(num_frames):
+        await download_image(prompt, width, height, model, frame_num)
+        frame = cv2.imread(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+        out.write(frame)
+
+        # Call the progress callback (updating the progress bar)
+        if progress_callback:
+            await progress_callback(frame_num + 1, num_frames)
+
+    out.release()
+    print(f"Video created: {video_name}")
+    
+    # Return the video path for sending later
+    return video_name
+
+# Progress bar update view
+class ProgressBarView(View):
+    def __init__(self):
+        super().__init__()
+        self.progress_message = None  # This will be updated with the progress
+
+    async def update_progress(self, current_frame, total_frames):
+        if self.progress_message:
+            progress = int((current_frame / total_frames) * 100)
+            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
+        else:
+            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
+
+# Command for generating video from prompt (Slash Command)
+@bot.tree.command(name="gen_img", description="Generate a video from a prompt")
+async def generate_video(interaction: discord.Interaction, prompt: str, num_frames: int = 30, fps: int = 10):
+    """
+    Generate a video based on a prompt with a specified number of frames and FPS.
+    The num_frames is the total number of frames, and fps is the frames per second.
+    """
+    # Validate num_frames and fps
+    if num_frames <= 0:
+        await interaction.response.send_message("The number of frames must be greater than 0.", ephemeral=False)
+        return
+    if fps <= 0:
+        await interaction.response.send_message("FPS must be greater than 0.", ephemeral=False)
+        return
+
+    await interaction.response.send_message("Generating video... Please wait.", ephemeral=False)
+    
+    # Create a progress bar view to track the process
+    progress_view = ProgressBarView()
+
+    # Send the progress view to track the progress
+    progress_message = await interaction.followup.send(
+        "Generating video... 0% Complete", view=progress_view, ephemeral=False)
+
+    # Update the progress view message
+    progress_view.message = progress_message
+
+    # Generate the video with user-defined FPS
+    video_file_path = await create_video_from_frames(
+        prompt, 
+        num_frames=num_frames, 
+        fps=fps,
+        progress_callback=progress_view.update_progress
+    )
+
+    # Send the video to Discord
+    with open(video_file_path, 'rb') as f:
+        await interaction.followup.send("Here is your video:", file=discord.File(f, 'output_video.mp4'))
+    
+    # Clean up the video file after sending it
+    os.remove(video_file_path)
+
+    # Clean up downloaded frames
+    for frame_num in range(num_frames):  # Assuming we generated the specified number of frames
+        os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+    
+    print("Cleaned up downloaded frames.")
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
