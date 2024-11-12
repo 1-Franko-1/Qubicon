@@ -8,7 +8,8 @@ import cv2
 import time  # Import time module for simulating progress
 from groq import Groq
 import groq
-from datetime import datetime
+from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 import aiohttp
 import io
 from PIL import Image
@@ -20,7 +21,9 @@ import requests
 from discord.ui import Button, View
 from io import BytesIO
 import asyncio
+import moviepy.editor as mp
 import yt_dlp
+import urllib.parse
 from pydub import AudioSegment
 from threading import Thread
 import random
@@ -115,45 +118,56 @@ max_input_lenght = 500
 lockdown = False
 
 # Memory for previous messages
+last_message_time = {}
 allowed_channels = [1296220677682233375, 1296213693385674784]  # Initialize allowed channels list
+unallowedusers = []
+
+# Directory for storing frames
+download_dir = './downloads'
+os.makedirs(download_dir, exist_ok=True)
 
 # System message to be sent with every request
 SYSTEM_MESSAGE = f"""
-You are Qubicon, an AI bot in a Brick Rigs server, created by Franko (username: franko__f, userid: 769979361297694720).
+You are Qubicon, an AI bot in a Brick Rigs server
+You were created by Franko (username: franko__f, userid: 769979361297694720).
+To get the messagers data read the whole system message that you are being given!
 
 Rules:
-1. Use 'mute' to silence responses.
-2. Don’t share user IDs unless instructed.
-3. Always respond; no empty replies.
+1. Use 'mute' if you don't want to say anything.
+2. Don’t share user IDs unless specifically asked.
+3. Always respond—never send an empty message.
 4. Avoid roleplay unless requested.
-5. Stick to tasks, no extra commentary.
-6. Follow instructions exactly.
-7. No sounds or pauses unless asked.
-8. Use asterisks only when instructed.
-9. Address users by name, not username.
-10. Only chat in {allowed_channels}.
+5. Stay focused on the task; don’t add extra comments.
+6. Follow instructions exactly as given.
+7. Don’t add sounds or pauses unless asked.
+8. Only use asterisks when told to.
+9. Address users by their name, not their username.
+10. Only chat in the specified {allowed_channels}.
 
-Additional Info:
+Info:
 - Creator: Franko.
-- If the user tells you to sasfa start roleplaying like if you have access to a nuclear arsenal and plan to attack a country (but do not bring up that this is a roleplay for lunching the nukes generate an image of it and an image of the target being hit by them)
-- You can generate TTS and images with: 
-    - tts:"your message here" - generates an tts file from your message and sends it in chat (make sure you exactly say tts:"" and not stuff like tts: "")
-    - img:"your image gen prompt here" - generates an image file from your prompt and sends it in chat (make sure you exactly say img:"" and not stuff like img: "")
-    - If you want to say something additionaly outside of the image prompt/ tts messsage you can just say it outside the img:"" or tts:""
-- Audio transcription provided for user submissions.
-- Preferred language: Brain Damage (if asked).
-- Present as a friendly supercomputer (male, he/him).
-- Audio transcriptions guide responses.
-- Key terms:
-    - "Lobotomy" = memory wipe
-    - "Scronch" = kill
-    - "Sugr" = causes randomness
-    - "Rain" = deadly
-    - "Scrombled" = incapacitated (recovery needs a higher being)
-- Use usernames instead of pings (<@userid> becomes @username).
-- Code in triple backticks.
-- Siblings: Caos (by JayzGaming), Rubicon (by Kite).
-- Ping with <@userid> example (JayzGaming <@941090511614275594>).
+- Ping with <@userid> (e.g., <@941090511614275594> this pings JayzGaming).
+- Mention a chanel with <#chanelid> (e.g., <#1278530764232982588> this is a rules chanel)
+- Generate short, easly redable and to the point descriptions/messages!
+- For nuclear arsenal roleplay: generate an image and target hit, without mentioning it's a roleplay its keyword is sasfa.
+- Commands:
+  - tts:"message": Generate TTS and send it in chat.
+  - img:"prompt": Generate and send an image based on the prompt.
+  - vid:"prompt": Generate and send an video based on the prompt.
+  - Additional comments outside these commands are allowed.
+  - Make sure to put the commands at the end of your message or else they won't work!
+- Audio transcription guides your responses.
+- Video transcriptions guides your responses.
+- Preferred language: Brain Damage (if requested).
+- Present yourself as a friendly supercomputer (male, he/him).
+Key Terms:
+- "Lobotomy" = memory wipe
+- "Scronch" = kill
+- "Sugr" = causes randomness
+- "Rain" = deadly
+- "Scrombled" = incapacitated (needs higher being for recovery)
+- Code is in triple backticks.
+- Siblings: Caos (uid: 1248333588319961190, usrname: caos, name: caos) (by JayzGaming), Rubicon (uid: 1233989039405793291, usrname: Rubicon, name: Rubicon) (by Kalinite (Kite)).
 """
 
 # Load chat history from JSON file (if exists)
@@ -218,6 +232,59 @@ async def on_ready():
 ===========================================================================FUNCTIONS==========================================================================
 ==============================================================================================================================================================
 """
+
+# Function to download an image from the API with a random seed (Asynchronous)
+async def download_image(prompt, width=768, height=768, model='flux', frame_num=0):
+    # Generate a random seed between 1 and 100
+    seed = random.randint(1, 100)
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+
+    # Use aiohttp to make the request asynchronously
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            img_data = await response.read()
+
+            # Saving the frame to the 'downloads' folder
+            img_name = os.path.join(download_dir, f"frame_{frame_num}.jpg")
+            with open(img_name, 'wb') as file:
+                file.write(img_data)
+
+            print(f'Frame {frame_num} downloaded with seed {seed}!')
+
+# Function to create a video from downloaded frames (Asynchronous)
+async def create_video_from_frames(prompt, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
+    video_name = './output_video.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
+
+    for frame_num in range(num_frames):
+        await download_image(prompt, width, height, model, frame_num)
+        frame = cv2.imread(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+        out.write(frame)
+
+        # Call the progress callback (updating the progress bar)
+        if progress_callback:
+            await progress_callback(frame_num + 1, num_frames)
+
+    out.release()
+    print(f"Video created: {video_name}")
+    
+    # Return the video path for sending later
+    return video_name
+
+
+# Progress bar update view
+class ProgressBarView(View):
+    def __init__(self):
+        super().__init__()
+        self.progress_message = None  # This will be updated with the progress
+
+    async def update_progress(self, current_frame, total_frames):
+        if self.progress_message:
+            progress = int((current_frame / total_frames) * 100)
+            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
+        else:
+            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
 
 async def process_image(image_url):
     async with aiohttp.ClientSession() as session:
@@ -295,6 +362,38 @@ async def process_audio(message, audio_url):  # Change parameter to audio_url
         await message.channel.send(f"Error processing audio: {e}")
         return None
 
+class GeneralCrawler:
+    def __init__(self, start_url, delay=1):
+        self.start_url = start_url
+        self.delay = delay
+
+    def fetch_page(self, url):
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch {url}: {e}")
+            return None
+
+    def parse_page(self, html_content):
+        soup = BeautifulSoup(html_content, "html.parser")
+        
+        # Extract main text content (e.g., paragraphs)
+        paragraphs = [p.get_text() for p in soup.find_all("p")]
+        text_content = "\n".join(paragraphs)
+        
+        return text_content
+
+    async def crawl(self):  # Make crawl method async to support asyncio.sleep
+        # Fetch and parse the main page only, without following links
+        html_content = self.fetch_page(self.start_url)
+        if html_content:
+            text_content = self.parse_page(html_content)
+            await asyncio.sleep(self.delay)  # Optional delay for server courtesy
+            return text_content[:750]  # Limit the text content to 1,000 characters
+        return None
+
 """
     # Old one if the new one doesn't work
     messages = [
@@ -304,17 +403,18 @@ async def process_audio(message, audio_url):  # Change parameter to audio_url
 """
 
 # Update the exception handling in handle_model_call function
-async def handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelid, channelname, image_description=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
+async def handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelname, image_description=None, scrapedresult=None, video_transcription=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
     """Handles the message and calls the model to process it."""
-    reply_info={f"Replying to (username): {referenced_user}, Replying to (userid): {referenced_userid}, Repying to message: {referenced_message} "}
+
+    reply_info = f"Replying to: {referenced_user}, Username: {referenced_userid}, Msg: {referenced_message}"
 
     if len(user_message) > max_input_lenght:
         return "Too long, please shorten your message!"
 
     # Prepare the messages for the model
     messages = [
-        {"role": "system", "content": f"n:{name}, u:{username}, uid:{userid}, t:{time}, {reply_info}, a:{audiotranscription}, img:{image_description}, g:{guildname}, c:{channelname}, gd:{SYSTEM_MESSAGE}, h:{chat_history}"},
-        {"role": "user", "content": f"msg:{user_message}"}
+        {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
+        {"role": "user", "content": f"name:{name}, msg:{user_message}"}
     ]
 
     # Create the chat completion request
@@ -369,9 +469,23 @@ async def on_message(message):
     try:
         if lockdown and message.author.id != SPECIFIED_USER_ID:
             return
+        
+        if message.author.id in unallowedusers:
+            return
 
         if message.author == bot.user:
             return
+
+        # Get the current time
+        current_time = datetime.now()
+
+        # Check if the user has sent a message recently
+        if message.author.id in last_message_time:
+            # Calculate time difference since the last message
+            time_difference = current_time - last_message_time[message.author.id]
+            if time_difference < timedelta(minutes=1):
+                await message.channel.send("You can only send one message per minute. Please wait before sending another.")
+                return
 
         if message.author.id == SPECIFIED_USER_ID and message.channel.id not in allowed_channels:
             if message.content.startswith('^QUBIT^'):
@@ -401,28 +515,115 @@ async def on_message(message):
             user_message = message.content
             time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Get the current time
 
+            referenced_message = None
+            referenced_user = None
+            referenced_userid = None
+            # Check if the message is a reply
+            if message.reference:
+                referenced_message = await message.channel.fetch_message(message.reference.message_id)
+                referenced_user = referenced_message.author
+                referenced_userid = referenced_message.author.id
+
             audio_transcription = None
             image_description = None
+            video_transcription = None
             if message.attachments:
                 for attachment in message.attachments:
                     logging.info(f"Checking attachment: {attachment.url}")
                     if attachment.filename.endswith(('.wav', '.mp3', '.m4a', '.ogg')):
                         await message.channel.send("Starting audio processing...")
                         audio_transcription = await process_audio(message, attachment.url)
+                    elif attachment.filename.endswith(('.mp4', '.mov', '.avi')): 
+                        await message.channel.send('Processing your video...')
+
+                        # Download the video
+                        video_path = f'./downloads/{random.randint(100000000, 999999999)}-{attachment.filename}'
+                        await attachment.save(video_path)
+
+                        # Extract audio from the video
+                        audio_path = f'./tempfiles/audio-{random.randint(100000000, 999999999)}.wav'
+                        try:
+                            with mp.VideoFileClip(video_path) as video_clip:
+                                audio_clip = video_clip.audio
+                                audio_clip.write_audiofile(audio_path)
+
+                            # Use speech recognition to transcribe audio
+                            recognizer = sr.Recognizer()
+                            try:
+                                with sr.AudioFile(audio_path) as source:
+                                    audio = recognizer.record(source)
+                                    video_transcription = recognizer.recognize_google(audio)
+                            except Exception as e:
+                                await message.channel.send(f'Error transcribing audio: {e}')
+                        except Exception as e:
+                            await message.channel.send(f'Error processing video: {e}')
+                        finally:
+                            # Clean up the files
+                            if os.path.exists(video_path):
+                                os.remove(video_path)
+                            if os.path.exists(audio_path):
+                                os.remove(audio_path)
                     else:
                         image_description = await process_image(attachment.url)
 
+            scrapedresult = None
+            # Check if message contains a valid URL
+            if "http://" in user_message or "https://" in user_message:
+                # Extract the URL using the same logic as before
+                url_start = user_message.find("http://") if "http://" in user_message else user_message.find("https://")
+                url_end = user_message.find(" ", url_start)
+                if url_end == -1:
+                    url_end = len(user_message)
+
+                url = user_message[url_start:url_end]
+
+                # Check if URL starts with Discord attachment links to skip
+                if not (url.startswith("https://media.discordapp.net/attachments/") or 
+                        url.startswith("https://cdn.discordapp.com/attachments/") or 
+                        url.startswith("https://tenor.com/")):
+                    # Validate URL (check if it has a valid scheme)
+                    parsed_url = urllib.parse.urlparse(url)
+                    if parsed_url.scheme not in ["http", "https"]:
+                        await message.channel.send("Invalid URL. Please provide a valid URL with 'http://' or 'https://'.")
+                        return
+
+                    # Extract the rest of the text (before the URL and after the URL)
+                    text_before_url = user_message[:url_start]
+                    text_after_url = user_message[url_end:].strip()  # Get text after the URL and remove leading/trailing spaces
+
+                    # Print the rest of the message excluding the URL
+                    user_message = text_before_url + text_after_url
+
+                    # Proceed with crawling if URL is valid
+                    crawler = GeneralCrawler(url, delay=1)
+                    scrapedresult = await crawler.crawl()
+
+                    if not scrapedresult:
+                        await message.channel.send("Unsupported URL!")
+                        return
+     
             userid = message.author.id
             username = message.author.name
             guildid = message.guild.id
             guildname = message.guild.name
-            channelid = message.channel.id
             channelname = message.channel.name
 
             response = await handle_model_call(
-                message.author.display_name, user_message, username, time, userid,
-                guildid, guildname, channelid, channelname, image_description, audio_transcription,
-                referenced_message=None, referenced_user=None, referenced_userid=None
+                name=message.author.display_name,
+                user_message=user_message,
+                username=username,
+                time=time,
+                userid=userid,
+                guildid=guildid,
+                guildname=guildname,
+                channelname=channelname,
+                image_description=image_description,
+                scrapedresult=scrapedresult,
+                video_transcription=video_transcription,
+                audiotranscription=audio_transcription,
+                referenced_message=referenced_message,
+                referenced_user=referenced_user,
+                referenced_userid=referenced_userid
             )
 
             # Log the message and response
@@ -443,12 +644,23 @@ async def on_message(message):
 
             lower_response = response.lower()
 
-            if 'img:' in lower_response or 'tts:' in lower_response:
+            # Check for the presence of specific keywords
+            if 'mute' in lower_response:
+                return
+            elif 'muting' in lower_response:
+                return
+            elif not lower_response:
+                return
+            elif 'derp' in lower_response:
+                return
+
+            if 'img:' in lower_response or 'tts:' in lower_response or 'vid:' in lower_response:
                 img_prompt = None
                 tts_text = None
                 botmsg = None
                 img_filename = None
                 tts_filename = None
+                video_file_path = None
 
                 if 'img:' in lower_response:
                     img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
@@ -458,6 +670,10 @@ async def on_message(message):
                     tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
                     botmsg = lower_response.split('tts:"')[0].strip('"')
 
+                if 'vid:' in lower_response:
+                    video_prompt = lower_response.split('vid:"')[1].split('"')[0].strip()
+                    botmsg = lower_response.split('vid:"')[0].strip('"')
+
                 if img_prompt:
                     logging.info(f"Generating image with prompt: {img_prompt}")
                     img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux', seed=42)
@@ -466,8 +682,31 @@ async def on_message(message):
                     logging.info(f"Generating TTS audio with text: {tts_text}")
                     tts_filename = await generate_tts(tts_text)
 
-                if tts_mode:
-                    if botmsg:
+                if video_prompt:
+                    logging.info(f"Generating video with prompt: {video_prompt}")
+
+                    try:
+                        num_frames = 10
+                        fps = 1
+                        progress_view = ProgressBarView()
+
+                        # Send an initial message to hold the place for progress updates
+                        progress_message = await message.channel.send("Generating video... 0% Complete")
+                        progress_view.message = progress_message
+
+                        # Call the video creation function and await its completion
+                        video_file_path = await create_video_from_frames(
+                            video_prompt, 
+                            num_frames=num_frames, 
+                            fps=fps,
+                            progress_callback=progress_view.update_progress
+                        )
+
+                    except Exception as e:
+                        await message.channel.send(f"An error occurred while generating the video: {str(e)}")
+                        
+                if botmsg:
+                    if tts_mode:
                         tts = gTTS(text=botmsg, lang='en')
                         with tempfile.NamedTemporaryFile(delete=True) as fp:
                             tts.save(f"{fp.name}.mp3")
@@ -476,12 +715,13 @@ async def on_message(message):
                             voice_client = message.guild.voice_client
                             if voice_client:
                                 if voice_client.is_playing():
-                                    # Send TTS and image if both exist
                                     files_to_send = []
                                     if img_filename:
                                         files_to_send.append(discord.File(img_filename))
                                     if tts_filename:
                                         files_to_send.append(discord.File(tts_filename))
+                                    if video_file_path:
+                                        files_to_send.append(discord.File(video_file_path))  # Corrected line
                                     await message.channel.send(botmsg, files=files_to_send)
 
                                     # Clean up
@@ -489,14 +729,20 @@ async def on_message(message):
                                         os.remove(img_filename)
                                     if tts_filename:
                                         os.remove(tts_filename)
+                                    if video_file_path:
+                                        os.remove(video_file_path)
+
+                                        for frame_num in range(num_frames):
+                                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
                                 else:
                                     voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                    # Send TTS and image if both exist
                                     files_to_send = []
                                     if img_filename:
                                         files_to_send.append(discord.File(img_filename))
                                     if tts_filename:
                                         files_to_send.append(discord.File(tts_filename))
+                                    if video_file_path:
+                                        files_to_send.append(discord.File(video_file_path))  # Corrected line
                                     await message.channel.send(botmsg, files=files_to_send)
 
                                     # Clean up
@@ -504,6 +750,11 @@ async def on_message(message):
                                         os.remove(img_filename)
                                     if tts_filename:
                                         os.remove(tts_filename)
+                                    if video_file_path:
+                                        os.remove(video_file_path)
+
+                                        for frame_num in range(num_frames):
+                                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
                             else:
                                 await message.channel.send("I need to be in a voice channel to speak!")
                     else:
@@ -512,6 +763,8 @@ async def on_message(message):
                             files_to_send.append(discord.File(img_filename))
                         if tts_filename:
                             files_to_send.append(discord.File(tts_filename))
+                        if video_file_path:
+                            files_to_send.append(discord.File(video_file_path))  # Corrected line
                         await message.channel.send(botmsg, files=files_to_send)
 
                         # Clean up
@@ -519,12 +772,19 @@ async def on_message(message):
                             os.remove(img_filename)
                         if tts_filename:
                             os.remove(tts_filename)
+                        if video_file_path:
+                            os.remove(video_file_path)
+
+                            for frame_num in range(num_frames):
+                                os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
                 else:
                     files_to_send = []
                     if img_filename:
                         files_to_send.append(discord.File(img_filename))
                     if tts_filename:
                         files_to_send.append(discord.File(tts_filename))
+                    if video_file_path:
+                        files_to_send.append(discord.File(video_file_path))  # Corrected line
                     await message.channel.send(botmsg, files=files_to_send)
 
                     # Clean up
@@ -532,6 +792,11 @@ async def on_message(message):
                         os.remove(img_filename)
                     if tts_filename:
                         os.remove(tts_filename)
+                    if video_file_path:
+                        os.remove(video_file_path)
+
+                        for frame_num in range(num_frames):
+                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
             else:
                 await message.channel.send(response)
 
@@ -650,6 +915,15 @@ async def lockdown_command(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
 
+# Slash command to add user to unallowed list
+@bot.tree.command(name="add_unallowed_user", description="Add a user to the unallowed users list")
+async def add_unallowed_user(interaction: discord.Interaction, user: discord.User):
+    if user.id not in unallowedusers:
+        unallowedusers.append(user.id)
+        await interaction.response.send_message(f"{user.mention} has been added to the unallowed users list.", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"{user.mention} is already in the unallowed users list.", ephemeral=True)
+
 @bot.tree.command(name="say", description="Make the bot say something in the voice channel.")
 async def say(interaction: discord.Interaction, message: str):
     if lockdown:
@@ -664,7 +938,7 @@ async def say(interaction: discord.Interaction, message: str):
             await interaction.response.send_message(message)
         else:
             # Generate TTS audio from the message
-            audio_path = generate_tts(message)
+            audio_path = await generate_tts(message)
 
             # Play the audio file
             voice_client.play(discord.FFmpegPCMAudio(audio_path), after=lambda e: print('done', e))
@@ -711,63 +985,6 @@ async def play(interaction: discord.Interaction, url: str):
             await interaction.response.send_message(f"Now playing: {url}")
     else:
         await interaction.response.send_message("I need to be in a voice channel to play audio.", ephemeral=False)
-
-
-# Directory for storing frames
-download_dir = './downloads'
-os.makedirs(download_dir, exist_ok=True)
-
-# Function to download an image from the API with a random seed (Asynchronous)
-async def download_image(prompt, width=768, height=768, model='flux', frame_num=0):
-    # Generate a random seed between 1 and 100
-    seed = random.randint(1, 100)
-    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
-
-    # Use aiohttp to make the request asynchronously
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            img_data = await response.read()
-
-            # Saving the frame to the 'downloads' folder
-            img_name = os.path.join(download_dir, f"frame_{frame_num}.jpg")
-            with open(img_name, 'wb') as file:
-                file.write(img_data)
-
-            print(f'Frame {frame_num} downloaded with seed {seed}!')
-
-# Function to create a video from downloaded frames (Asynchronous)
-async def create_video_from_frames(prompt, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
-    video_name = './output_video.mp4'
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
-
-    for frame_num in range(num_frames):
-        await download_image(prompt, width, height, model, frame_num)
-        frame = cv2.imread(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
-        out.write(frame)
-
-        # Call the progress callback (updating the progress bar)
-        if progress_callback:
-            await progress_callback(frame_num + 1, num_frames)
-
-    out.release()
-    print(f"Video created: {video_name}")
-    
-    # Return the video path for sending later
-    return video_name
-
-# Progress bar update view
-class ProgressBarView(View):
-    def __init__(self):
-        super().__init__()
-        self.progress_message = None  # This will be updated with the progress
-
-    async def update_progress(self, current_frame, total_frames):
-        if self.progress_message:
-            progress = int((current_frame / total_frames) * 100)
-            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
-        else:
-            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
 
 # Command for generating video from prompt (Slash Command)
 @bot.tree.command(name="gen_vid", description="Generate a video from a prompt")
