@@ -113,7 +113,7 @@ web_token = '23589572bfd326bck47'
 
 # Dev mode variable
 devmode = 1
-version = '2.0.1'
+version = '2.4'
 max_input_lenght = 500
 lockdown = False
 
