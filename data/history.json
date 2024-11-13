@@ -1,29 +1,20 @@
 [
     {
-        "timestamp": "2024-11-13 14:28:20",
+        "timestamp": "2024-11-13 14:43:44",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
-        "message": "hi",
-        "response": "Hi Franko, what can I do for you today?"
+        "message": "generate me a simple video",
+        "response": "Hey Franko, I'd be happy to generate a simple video for you. \n\nHere's a video of a car driving down a desert road.\n\n vid:\"a car driving down a desert road\""
     },
     {
-        "timestamp": "2024-11-13 14:28:37",
+        "timestamp": "2024-11-13 14:43:52",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
-        "message": "generate me a video of the word test on a computer screen",
-        "response": "Hi Franko, I'd be happy to generate a video for you. \nvid:\"A close-up of a computer screen displaying the word 'test' in a plain, white font on a black background, with the camera zooming in slightly for emphasis.\""
-    },
-    {
-        "timestamp": "2024-11-13 14:29:45",
-        "user": {
-            "id": 769979361297694720,
-            "name": "franko__f"
-        },
-        "message": "generate me a video of the word test on a computer screen",
-        "response": "Hi Franko, I'd be happy to generate a video for you. \nvid:\"A close-up of a computer screen displaying the word 'test' in a plain, white font on a black background, with the camera zooming in slightly for emphasis.\""
+        "message": "generate me another simple video",
+        "response": "Hey Franko, I'd be happy to generate another simple video for you. \n\nHere's a video of a plane taking off from a runway.\n\nvid:\"a plane taking off from a runway\""
     }
 ]

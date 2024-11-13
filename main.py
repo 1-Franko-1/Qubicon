@@ -242,25 +242,36 @@ async def download_image(prompt, width=768, height=768, model='flux', frame_num=
     # Use aiohttp to make the request asynchronously
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            img_data = await response.read()
+            if response.status == 200:
+                img_data = await response.read()
 
-            # Saving the frame to the 'downloads' folder
-            img_name = os.path.join(download_dir, f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
-            with open(img_name, 'wb') as file:
-                file.write(img_data)
+                # Saving the frame to the 'downloads' folder
+                img_name = os.path.join(download_dir, f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
+                with open(img_name, 'wb') as file:
+                    file.write(img_data)
 
-            print(f'Frame {frame_num} downloaded with seed {seed}!')
+                print(f'Frame {frame_num} downloaded with seed {seed}!')
+                return img_name
+            else:
+                print(f"Failed to download frame {frame_num} with status {response.status}")
+                return None
 
 # Function to create a video from downloaded frames (Asynchronous)
 async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
-    video_name = f'./tempflies/output_video-{random.randint(100000000, 999999999)}.mp4'
+    video_name = f'./tempfiles/output_video-{random.randint(100000000, 999999999)}.mp4'
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
 
     for frame_num in range(num_frames):
-        await download_image(prompt, width, height, model, frame_num)
-        frame = cv2.imread(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
-        out.write(frame)
+        frame_path = await download_image(prompt, width, height, model, frame_num)
+        if frame_path:
+            frame = cv2.imread(frame_path)
+            if frame is not None:
+                out.write(frame)
+            else:
+                print(f"Warning: Frame {frame_num} could not be loaded.")
+        else:
+            print(f"Warning: Frame {frame_num} download failed.")
 
         # Call the progress callback (updating the progress bar)
         if use_progressbar:
@@ -269,10 +280,9 @@ async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=1
 
     out.release()
     print(f"Video created: {video_name}")
-    
+
     # Return the video path for sending later
     return video_name
-
 
 # Progress bar update view
 class ProgressBarView(View):
@@ -708,11 +718,6 @@ async def on_message(message):
                     try:
                         num_frames = 10
                         fps = 1
-                        progress_view = ProgressBarView()
-
-                        # Send an initial message to hold the place for progress updates
-                        progress_message = print("Generating video... 0% Complete")
-                        progress_view.message = None
 
                         # Call the video creation function and await its completion
                         video_file_path = await create_video_from_frames(
@@ -720,7 +725,7 @@ async def on_message(message):
                             use_progressbar = False,
                             num_frames=num_frames, 
                             fps=fps,
-                            progress_callback=None #replace with progress_view.update_progress if you want to use a progres bar
+                            progress_callback=None
                         )
 
                     except Exception as e:
