@@ -245,15 +245,15 @@ async def download_image(prompt, width=768, height=768, model='flux', frame_num=
             img_data = await response.read()
 
             # Saving the frame to the 'downloads' folder
-            img_name = os.path.join(download_dir, f"frame_{frame_num}.jpg")
+            img_name = os.path.join(download_dir, f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
             with open(img_name, 'wb') as file:
                 file.write(img_data)
 
             print(f'Frame {frame_num} downloaded with seed {seed}!')
 
 # Function to create a video from downloaded frames (Asynchronous)
-async def create_video_from_frames(prompt, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
-    video_name = './output_video.mp4'
+async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
+    video_name = f'./tempflies/output_video-{random.randint(100000000, 999999999)}.mp4'
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
 
@@ -263,8 +263,9 @@ async def create_video_from_frames(prompt, num_frames=30, fps=10, width=768, hei
         out.write(frame)
 
         # Call the progress callback (updating the progress bar)
-        if progress_callback:
-            await progress_callback(frame_num + 1, num_frames)
+        if use_progressbar:
+            if progress_callback:
+                await progress_callback(frame_num + 1, num_frames)
 
     out.release()
     print(f"Video created: {video_name}")
@@ -457,6 +458,30 @@ async def generate_tts(contents):
     audio_file = f"tempfiles/tts-{random_number}.mp3"
     tts.save(audio_file)
     return audio_file
+
+
+async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filename=None, video_file_path=None, num_frames=0, download_dir=""):
+    files_to_send = []
+    
+    if img_filename:
+        files_to_send.append(discord.File(img_filename))
+    if tts_filename:
+        files_to_send.append(discord.File(tts_filename))
+    if video_file_path:
+        files_to_send.append(discord.File(video_file_path))
+    
+    await message.channel.send(botmsg, files=files_to_send)
+
+    # Clean up
+    if img_filename:
+        os.remove(img_filename)
+    if tts_filename:
+        os.remove(tts_filename)
+    if video_file_path:
+        os.remove(video_file_path)
+        
+        for frame_num in range(num_frames):
+            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
 
 """
 ==============================================================================================================================================================
@@ -657,32 +682,27 @@ async def on_message(message):
             if 'img:' in lower_response or 'tts:' in lower_response or 'vid:' in lower_response:
                 img_prompt = None
                 tts_text = None
-                botmsg = None
+                botmsg = lower_response
                 img_filename = None
                 tts_filename = None
+                num_frames = None
                 video_file_path = None
 
                 if 'img:' in lower_response:
                     img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
-                    botmsg = lower_response.split('img:"')[0].strip('"')
-
-                if 'tts:' in lower_response:
-                    tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
-                    botmsg = lower_response.split('tts:"')[0].strip('"')
-
-                if 'vid:' in lower_response:
-                    video_prompt = lower_response.split('vid:"')[1].split('"')[0].strip()
-                    botmsg = lower_response.split('vid:"')[0].strip('"')
-
-                if img_prompt:
+                    botmsg = botmsg.split('img:"')[0].strip('"')
                     logging.info(f"Generating image with prompt: {img_prompt}")
                     img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux', seed=42)
 
-                if tts_text:
+                if 'tts:' in lower_response:
+                    tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
+                    botmsg = botmsg.split('tts:"')[0].strip('"')
                     logging.info(f"Generating TTS audio with text: {tts_text}")
                     tts_filename = await generate_tts(tts_text)
 
-                if video_prompt:
+                if 'vid:' in lower_response:
+                    video_prompt = lower_response.split('vid:"')[1].split('"')[0].strip()
+                    botmsg = botmsg.split('vid:"')[0].strip('"')
                     logging.info(f"Generating video with prompt: {video_prompt}")
 
                     try:
@@ -691,20 +711,21 @@ async def on_message(message):
                         progress_view = ProgressBarView()
 
                         # Send an initial message to hold the place for progress updates
-                        progress_message = await message.channel.send("Generating video... 0% Complete")
-                        progress_view.message = progress_message
+                        progress_message = print("Generating video... 0% Complete")
+                        progress_view.message = None
 
                         # Call the video creation function and await its completion
                         video_file_path = await create_video_from_frames(
                             video_prompt, 
+                            use_progressbar = False,
                             num_frames=num_frames, 
                             fps=fps,
-                            progress_callback=progress_view.update_progress
+                            progress_callback=None #replace with progress_view.update_progress if you want to use a progres bar
                         )
 
                     except Exception as e:
                         await message.channel.send(f"An error occurred while generating the video: {str(e)}")
-                        
+                    
                 if botmsg:
                     if tts_mode:
                         tts = gTTS(text=botmsg, lang='en')
@@ -715,88 +736,16 @@ async def on_message(message):
                             voice_client = message.guild.voice_client
                             if voice_client:
                                 if voice_client.is_playing():
-                                    files_to_send = []
-                                    if img_filename:
-                                        files_to_send.append(discord.File(img_filename))
-                                    if tts_filename:
-                                        files_to_send.append(discord.File(tts_filename))
-                                    if video_file_path:
-                                        files_to_send.append(discord.File(video_file_path))  # Corrected line
-                                    await message.channel.send(botmsg, files=files_to_send)
-
-                                    # Clean up
-                                    if img_filename:
-                                        os.remove(img_filename)
-                                    if tts_filename:
-                                        os.remove(tts_filename)
-                                    if video_file_path:
-                                        os.remove(video_file_path)
-
-                                        for frame_num in range(num_frames):
-                                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+                                    await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
                                 else:
                                     voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
-                                    files_to_send = []
-                                    if img_filename:
-                                        files_to_send.append(discord.File(img_filename))
-                                    if tts_filename:
-                                        files_to_send.append(discord.File(tts_filename))
-                                    if video_file_path:
-                                        files_to_send.append(discord.File(video_file_path))  # Corrected line
-                                    await message.channel.send(botmsg, files=files_to_send)
-
-                                    # Clean up
-                                    if img_filename:
-                                        os.remove(img_filename)
-                                    if tts_filename:
-                                        os.remove(tts_filename)
-                                    if video_file_path:
-                                        os.remove(video_file_path)
-
-                                        for frame_num in range(num_frames):
-                                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+                                    await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
                             else:
                                 await message.channel.send("I need to be in a voice channel to speak!")
                     else:
-                        files_to_send = []
-                        if img_filename:
-                            files_to_send.append(discord.File(img_filename))
-                        if tts_filename:
-                            files_to_send.append(discord.File(tts_filename))
-                        if video_file_path:
-                            files_to_send.append(discord.File(video_file_path))  # Corrected line
-                        await message.channel.send(botmsg, files=files_to_send)
-
-                        # Clean up
-                        if img_filename:
-                            os.remove(img_filename)
-                        if tts_filename:
-                            os.remove(tts_filename)
-                        if video_file_path:
-                            os.remove(video_file_path)
-
-                            for frame_num in range(num_frames):
-                                os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+                        await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
                 else:
-                    files_to_send = []
-                    if img_filename:
-                        files_to_send.append(discord.File(img_filename))
-                    if tts_filename:
-                        files_to_send.append(discord.File(tts_filename))
-                    if video_file_path:
-                        files_to_send.append(discord.File(video_file_path))  # Corrected line
-                    await message.channel.send(botmsg, files=files_to_send)
-
-                    # Clean up
-                    if img_filename:
-                        os.remove(img_filename)
-                    if tts_filename:
-                        os.remove(tts_filename)
-                    if video_file_path:
-                        os.remove(video_file_path)
-
-                        for frame_num in range(num_frames):
-                            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
+                    await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
             else:
                 await message.channel.send(response)
 
@@ -1016,6 +965,7 @@ async def generate_video(interaction: discord.Interaction, prompt: str, num_fram
     # Generate the video with user-defined FPS
     video_file_path = await create_video_from_frames(
         prompt, 
+        use_progressbar = True,
         num_frames=num_frames, 
         fps=fps,
         progress_callback=progress_view.update_progress
