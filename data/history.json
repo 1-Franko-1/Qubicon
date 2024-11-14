@@ -1,20 +1,22 @@
 [
     {
-        "timestamp": "2024-11-13 14:43:44",
+        "timestamp": "2024-11-14 14:24:54",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
-        "message": "generate me a simple video",
-        "response": "Hey Franko, I'd be happy to generate a simple video for you. \n\nHere's a video of a car driving down a desert road.\n\n vid:\"a car driving down a desert road\""
+        "message": "hi",
+        "response": "Hello Franko.",
+        "message_id": 1306610811237826591
     },
     {
-        "timestamp": "2024-11-13 14:43:52",
+        "timestamp": "2024-11-14 14:24:58",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
-        "message": "generate me another simple video",
-        "response": "Hey Franko, I'd be happy to generate another simple video for you. \n\nHere's a video of a plane taking off from a runway.\n\nvid:\"a plane taking off from a runway\""
+        "message": "who are you",
+        "response": "I'm Qubicon, your AI bot in this Brick Rigs server. I was created by you, Franko, with the help of FTech's custom model.",
+        "message_id": 1306610829021675531
     }
 ]

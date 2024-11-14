@@ -27,6 +27,10 @@ import urllib.parse
 from pydub import AudioSegment
 from threading import Thread
 import random
+from flask import Flask
+
+# Create a Flask app instance
+app = Flask(__name__)
 
 # Color codes for logging
 class LogColors:
@@ -129,7 +133,7 @@ os.makedirs(download_dir, exist_ok=True)
 # System message to be sent with every request
 SYSTEM_MESSAGE = f"""
 You are Qubicon, an AI bot in a Brick Rigs server
-You were created by Franko (username: franko__f, userid: 769979361297694720).
+You were created by Franko (username: franko__f, userid: 769979361297694720) and your custom model by FTech.
 To get the messagers data read the whole system message that you are being given!
 
 Rules:
@@ -268,6 +272,7 @@ async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=1
             frame = cv2.imread(frame_path)
             if frame is not None:
                 out.write(frame)
+                os.remove(frame_path)
             else:
                 print(f"Warning: Frame {frame_num} could not be loaded.")
         else:
@@ -414,7 +419,7 @@ class GeneralCrawler:
 """
 
 # Update the exception handling in handle_model_call function
-async def handle_model_call(name, user_message, username, time, userid, guildid, guildname, channelname, image_description=None, scrapedresult=None, video_transcription=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
+async def handle_model_call(name, user_message, username, time, userid, chanelid, guildname, channelname, image_description=None, scrapedresult=None, video_transcription=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None):
     """Handles the message and calls the model to process it."""
 
     reply_info = f"Replying to: {referenced_user}, Username: {referenced_userid}, Msg: {referenced_message}"
@@ -424,7 +429,7 @@ async def handle_model_call(name, user_message, username, time, userid, guildid,
 
     # Prepare the messages for the model
     messages = [
-        {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
+        {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
         {"role": "user", "content": f"name:{name}, msg:{user_message}"}
     ]
 
@@ -489,9 +494,6 @@ async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filenam
         os.remove(tts_filename)
     if video_file_path:
         os.remove(video_file_path)
-        
-        for frame_num in range(num_frames):
-            os.remove(os.path.join(download_dir, f"frame_{frame_num}.jpg"))
 
 """
 ==============================================================================================================================================================
@@ -502,6 +504,9 @@ async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filenam
 @bot.event
 async def on_message(message):
     try:
+        if message.channel.id not in allowed_channels:
+            return
+
         if lockdown and message.author.id != SPECIFIED_USER_ID:
             return
         
@@ -546,7 +551,7 @@ async def on_message(message):
                 return
 
         # Process the message if it's in allowed channels
-        if message.channel.id in allowed_channels and not message.content.startswith('^'):
+        if not message.content.startswith('^'):
             user_message = message.content
             time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Get the current time
 
@@ -639,7 +644,7 @@ async def on_message(message):
      
             userid = message.author.id
             username = message.author.name
-            guildid = message.guild.id
+            chanelid = message.channel.id
             guildname = message.guild.name
             channelname = message.channel.name
 
@@ -649,7 +654,7 @@ async def on_message(message):
                 username=username,
                 time=time,
                 userid=userid,
-                guildid=guildid,
+                chanelid=chanelid,
                 guildname=guildname,
                 channelname=channelname,
                 image_description=image_description,
@@ -665,11 +670,13 @@ async def on_message(message):
             logging.info(f"Message: {user_message}")
             logging.info(f"Bot message: {response}")
 
+            # Add message ID to each chat entry for easy lookup in case of edits
             chat_entry = {
                 "timestamp": time,
                 "user": {"id": userid, "name": username},
                 "message": user_message,
-                "response": response
+                "response": response,
+                "message_id": message.id  # Store the message ID
             }
 
             chat_history.append(chat_entry)
@@ -752,14 +759,52 @@ async def on_message(message):
                 else:
                     await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
             else:
-                await message.channel.send(response)
+                await message.reply(response)
 
     except CommandOnCooldown:
         await message.channel.send("Please wait 3 seconds before sending another message.")
     except Exception as e:
         logging.error(f"Error processing message: {e}")
         await message.channel.send("An error occurred while processing your message.")
-            
+
+# Add an event handler to process message edits
+@bot.event
+async def on_message_edit(before, after):
+    if before.channel.id not in allowed_channels:
+        return
+
+    if before.author == bot.user:
+        return  # Ignore bot's own messages
+
+    if before.content == after.content:
+        return  # No change in content
+
+    # Locate the entry in chat_history with the matching message_id
+    for entry in chat_history:
+        if entry["message_id"] == before.id:
+            # Update the message in chat_history
+            entry["message"] = after.content
+            entry["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Update timestamp
+            logging.info(f"Updated message in chat history: {entry}")
+
+            # Optionally, you could re-process the modified message if necessary
+            response = await handle_model_call(
+                name=after.author.display_name,
+                user_message=after.content,
+                username=after.author.name,
+                time=entry["timestamp"],
+                userid=after.author.id,
+                guildid=after.guild.id,
+                guildname=after.guild.name,
+                channelname=after.channel.name
+            )
+            entry["response"] = response  # Update the response
+            save_chat_history(chat_history)  # Save the updated history
+            break
+
+    # Send a follow-up reply to the edited message
+    await after.reply("Memory updated", mention_author=False)
+
 """
 ==============================================================================================================================================================
 ===========================================================================COMMANDS===========================================================================
@@ -989,5 +1034,14 @@ async def generate_video(interaction: discord.Interaction, prompt: str, num_fram
     
     print("Cleaned up downloaded frames.")
 
+# Define a route for the root URL
+@app.route('/')
+def hello_world():
+    return 'Hello, World!'
+
 # Run the bot
 bot.run(DISCORD_TOKEN)
+
+# Run the app if this file is executed directly
+if __name__ == '__main__':
+    app.run(debug=True)
