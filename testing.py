@@ -14,7 +14,7 @@ import aiohttp
 import io
 from PIL import Image
 import sys  # Add this import at the beginning of your script
-import pyttsx3
+from gtts import gTTS
 import tempfile
 import speech_recognition as sr
 import requests
@@ -22,14 +22,13 @@ from discord.ui import Button, View
 from io import BytesIO
 import asyncio
 import moviepy.editor as mp
-from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 import yt_dlp
 import urllib.parse
 from pydub import AudioSegment
 from threading import Thread
 import random
+import threading
 from flask import Flask
-from elevenlabs.client import ElevenLabs
 
 # Create a Flask app instance
 app = Flask(__name__)
@@ -80,11 +79,6 @@ logger.addHandler(console_handler)
 # Define your Discord bot token and other environment variables
 GROQ_API_KEY = os.getenv("GROQ")  # Make sure to set this environment variable
 DISCORD_TOKEN = os.getenv("QB_TOKEN")  # Include if necessary
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
-client_elevenlabs = ElevenLabs(
-  api_key=ELEVENLABS_API_KEY, # Defaults to ELEVEN_API_KEY
-)
 
 # Initialize the Groq client
 client = Groq(api_key=GROQ_API_KEY)
@@ -124,7 +118,7 @@ web_token = '23589572bfd326bck47'
 
 # Dev mode variable
 devmode = 1
-version = '2.5'
+version = '2.4'
 max_input_lenght = 500
 lockdown = False
 
@@ -243,6 +237,71 @@ async def on_ready():
 ===========================================================================FUNCTIONS==========================================================================
 ==============================================================================================================================================================
 """
+
+# Function to download an image from the API with a random seed (Asynchronous)
+async def download_image(prompt, width=768, height=768, model='flux', frame_num=0):
+    # Generate a random seed between 1 and 100
+    seed = random.randint(1, 100)
+    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+
+    # Use aiohttp to make the request asynchronously
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                img_data = await response.read()
+
+                # Saving the frame to the 'downloads' folder
+                img_name = os.path.join(download_dir, f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
+                with open(img_name, 'wb') as file:
+                    file.write(img_data)
+
+                print(f'Frame {frame_num} downloaded with seed {seed}!')
+                return img_name
+            else:
+                print(f"Failed to download frame {frame_num} with status {response.status}")
+                return None
+
+# Function to create a video from downloaded frames (Asynchronous)
+async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
+    video_name = f'./tempfiles/output_video-{random.randint(100000000, 999999999)}.mp4'
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
+
+    for frame_num in range(num_frames):
+        frame_path = await download_image(prompt, width, height, model, frame_num)
+        if frame_path:
+            frame = cv2.imread(frame_path)
+            if frame is not None:
+                out.write(frame)
+                os.remove(frame_path)
+            else:
+                print(f"Warning: Frame {frame_num} could not be loaded.")
+        else:
+            print(f"Warning: Frame {frame_num} download failed.")
+
+        # Call the progress callback (updating the progress bar)
+        if use_progressbar:
+            if progress_callback:
+                await progress_callback(frame_num + 1, num_frames)
+
+    out.release()
+    print(f"Video created: {video_name}")
+
+    # Return the video path for sending later
+    return video_name
+
+# Progress bar update view
+class ProgressBarView(View):
+    def __init__(self):
+        super().__init__()
+        self.progress_message = None  # This will be updated with the progress
+
+    async def update_progress(self, current_frame, total_frames):
+        if self.progress_message:
+            progress = int((current_frame / total_frames) * 100)
+            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
+        else:
+            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
 
 async def process_image(image_url):
     async with aiohttp.ClientSession() as session:
@@ -371,9 +430,9 @@ async def handle_model_call(name, user_message, username, time, userid, chanelid
 
     # Prepare the messages for the model
     messages = [
-        {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
+        {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}"},
         {"role": "user", "content": f"name:{name}, msg:{user_message}"}
-    ]
+    ] + chat_history
 
     # Create the chat completion request
     try:
@@ -409,60 +468,14 @@ async def generate_image(prompt, width=768, height=768, model='flux', seed=None)
     
     return filename  # Return the filename so it can be used later
 
-def make_elevenlabs_audio(text_to_say):
-    output_file = f"tempfiles/output-elevenlabs-{random.randint(100000000, 999999999)}.mp3"
-    
-    # Generate the audio using the ElevenLabs API
-    audio_generator = client_elevenlabs.generate(
-        text=text_to_say,
-        voice="Callum",
-        model="eleven_multilingual_v1"
-    )
-    
-    # Convert the generator to a bytes object (consume the generator)
-    audio_bytes = b"".join(audio_generator)
-    
-    # Save the generated audio to the output file
-    with open(output_file, "wb") as f:
-        f.write(audio_bytes)
-    
-    return output_file
-
-async def generate_tts(contents, lang='en'):
-    model = 1
-
-    if model == 1:
-        audio_file = make_elevenlabs_audio(contents)
-        print(f"Audio saved to {audio_file}")
-    else:
-        # Initialize the TTS engine
-        engine = pyttsx3.init()
-
-        voice_index = 4
-
-        voices = engine.getProperty('voices')
-        engine.setProperty('rate', 150)  # Speed of speech
-        engine.setProperty('volume', 1)  # Volume level (0.0 to 1.0)
-
-        # Check if the provided voice_index is valid, if not default to 0 (first voice)
-        if voice_index < 0 or voice_index >= len(voices):
-            voice_index = 0
-
-        # Set the selected voice
-        engine.setProperty('voice', voices[voice_index].id)
-
-        # Generate a random number for the filename
-        random_number = random.randint(10000000, 99999999)
-        audio_file = f"tempfiles/tts-{random_number}.mp3"
-
-        # Save the TTS output to the file
-        engine.save_to_file(contents, audio_file)
-
-        # Wait for the speech engine to finish processing before returning the file path
-        engine.runAndWait()
-
+async def generate_tts(contents):
+    tts = gTTS(text=contents, lang='en')  # Remove '.content' here
+    random_number = random.randint(10000000, 99999999)
+    audio_file = f"tempfiles/tts-{random_number}.mp3"
+    tts.save(audio_file)
     return audio_file
-    
+
+
 async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filename=None, video_file_path=None, num_frames=0, download_dir=""):
     files_to_send = []
     
@@ -482,114 +495,6 @@ async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filenam
         os.remove(tts_filename)
     if video_file_path:
         os.remove(video_file_path)
-
-# Function to download an image from the API with a random seed (Asynchronous)
-async def download_image(prompt, width=768, height=768, model='flux', frame_num=0):
-    # Generate a random seed between 1 and 100
-    seed = random.randint(1, 100)
-    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
-
-    # Use aiohttp to make the request asynchronously
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                img_data = await response.read()
-
-                # Saving the frame to the 'downloads' folder
-                img_name = os.path.join(download_dir, f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
-                with open(img_name, 'wb') as file:
-                    file.write(img_data)
-
-                print(f'Frame {frame_num} downloaded with seed {seed}!')
-                return img_name
-            else:
-                print(f"Failed to download frame {frame_num} with status {response.status}")
-                return None
-
-# Function to create a video from downloaded frames with TTS audio (Asynchronous)
-async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=10, width=768, height=768, model='flux', progress_callback=None):
-    video_name = f'./tempfiles/output_video-{random.randint(100000000, 999999999)}.mp4'
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(video_name, fourcc, fps, (width, height))
-
-    # Create video frames
-    for frame_num in range(num_frames):
-        frame_path = await download_image(prompt, width, height, model, frame_num)
-        if frame_path:
-            frame = cv2.imread(frame_path)
-            if frame is not None:
-                out.write(frame)
-                os.remove(frame_path)
-            else:
-                print(f"Warning: Frame {frame_num} could not be loaded.")
-        else:
-            print(f"Warning: Frame {frame_num} download failed.")
-
-        # Call the progress callback (updating the progress bar)
-        if use_progressbar and progress_callback:
-            await progress_callback(frame_num + 1, num_frames)
-
-    out.release()
-    print(f"Video created: {video_name}")
-
-    # Generate TTS audio
-    audio_path = await generate_tts(prompt, lang='en')
-    
-    # Combine video with TTS audio
-    final_video_name = f'./tempfiles/final_video-{random.randint(100000000, 999999999)}.mp4'
-    video_clip = VideoFileClip(video_name)
-    audio_clip = AudioFileClip(audio_path)
-
-    # Adjust audio duration if shorter than video
-    if audio_clip.duration < video_clip.duration:
-        audio_clip = CompositeAudioClip([audio_clip]).set_duration(video_clip.duration)
-    else:
-        audio_clip = audio_clip.set_duration(video_clip.duration)  # Trim if needed
-
-    final_clip = video_clip.set_audio(audio_clip)
-    final_clip.write_videofile(final_video_name, codec='libx264')
-
-    # Cleanup
-    video_clip.close()
-    audio_clip.close()
-    os.remove(video_name)
-    os.remove(audio_path)
-
-    print(f"Final video with audio created: {final_video_name}")
-
-    # Return the final video path for sending later
-    return final_video_name
-
-# Progress bar update view
-class ProgressBarView(View):
-    def __init__(self):
-        super().__init__()
-        self.progress_message = None  # This will be updated with the progress
-
-    async def update_progress(self, current_frame, total_frames):
-        if self.progress_message:
-            progress = int((current_frame / total_frames) * 100)
-            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
-        else:
-            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
-
-async def handle_tts_vc(tts_mode, botmsg, message, img_filename, tts_filename, video_file_path, num_frames, download_dir):
-    if tts_mode:
-        # Use the new generate_tts function to get the TTS file
-        audio_file = await generate_tts(botmsg, lang='en')
-
-        # Check if the bot is in a voice channel
-        voice_client = message.guild.voice_client
-        if voice_client:
-            if voice_client.is_playing():
-                await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
-            else:
-                voice_client.play(discord.FFmpegPCMAudio(audio_file))
-                await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
-        else:
-            await message.channel.send("I need to be in a voice channel to speak!")
-    else:
-        await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
 
 """
 ==============================================================================================================================================================
@@ -767,13 +672,11 @@ async def on_message(message):
             logging.info(f"Bot message: {response}")
 
             # Add message ID to each chat entry for easy lookup in case of edits
-            chat_entry = {
-                "timestamp": time,
-                "user": {"id": userid, "name": username},
-                "message": user_message,
-                "response": response,
-                "message_id": message.id  # Store the message ID
-            }
+            reply_info = f"Replying to: {referenced_user}, Username: {referenced_userid}, Msg: {referenced_message}"
+            chat_entry = [
+                {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audio_transcription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}, messageid:{message.id}"},
+                {"role": "user", "content": f"name:{message.author.display_name}, msg:{user_message}"}
+            ]
 
             chat_history.append(chat_entry)
 
@@ -811,7 +714,7 @@ async def on_message(message):
                     tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
                     botmsg = botmsg.split('tts:"')[0].strip('"')
                     logging.info(f"Generating TTS audio with text: {tts_text}")
-                    tts_filename = await generate_tts(tts_text, lang='en')
+                    tts_filename = await generate_tts(tts_text)
 
                 if 'vid:' in lower_response:
                     video_prompt = lower_response.split('vid:"')[1].split('"')[0].strip()
@@ -835,11 +738,25 @@ async def on_message(message):
                         await message.channel.send(f"An error occurred while generating the video: {str(e)}")
                     
                 if botmsg:
-                    await handle_tts_vc(tts_mode, botmsg, message, img_filename, tts_filename, video_file_path, num_frames, download_dir)
+                    if tts_mode:
+                        tts = gTTS(text=botmsg, lang='en')
+                        with tempfile.NamedTemporaryFile(delete=True) as fp:
+                            tts.save(f"{fp.name}.mp3")
+
+                            # Check if the bot is in a voice channel
+                            voice_client = message.guild.voice_client
+                            if voice_client:
+                                if voice_client.is_playing():
+                                    await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
+                                else:
+                                    voice_client.play(discord.FFmpegPCMAudio(f"{fp.name}.mp3"))
+                                    await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
+                            else:
+                                await message.reply("I need to be in a voice channel to speak!")
+                    else:
+                        await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
                 else:
                     await send_files_and_cleanup(message, botmsg, img_filename, tts_filename, video_file_path, num_frames, download_dir)
-            elif tts_mode:
-                await handle_tts_vc(tts_mode, response, message, img_filename=None, tts_filename=None, video_file_path=None, num_frames=None, download_dir=None)
             else:
                 await message.reply(response)
 
@@ -849,34 +766,33 @@ async def on_message(message):
         logging.error(f"Error processing message: {e}")
         await message.channel.send("An error occurred while processing your message.")
 
-# Add an event handler to process message edits
 @bot.event
 async def on_message_edit(before, after):
-    if before.channel.id not in allowed_channels:
-        return
+    try:
+        if after.channel.id not in allowed_channels:
+            return
 
-    if before.author == bot.user:
-        return  # Ignore bot's own messages
-    
-    if before.content.startswith('^'):
-        return
+        # If the message is being edited by the bot itself, skip it
+        if after.author == bot.user:
+            return
+        
+        # Locate the message in the chat history
+        for chat_entry in chat_history:
+            # Compare the message ID in chat history with the edited message ID
+            if chat_entry[0]["messageid"] == before.id:
+                # Update the user's message content in chat history
+                chat_entry[1]["content"] = f"name:{after.author.display_name}, msg:{after.content}"
 
-    if before.content == after.content:
-        return  # No change in content
+                # Log the updated message
+                logging.info(f"Message edited by {after.author.name}: {before.content} -> {after.content}")
 
-    # Locate the entry in chat_history with the matching message_id
-    for entry in chat_history:
-        if entry["message_id"] == before.id:
-            # Update the message in chat_history
-            entry["message"] = after.content
-            entry["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Update timestamp
-            logging.info(f"Updated message in chat history: {entry}")
+                # Save the updated chat history
+                save_chat_history(chat_history)
 
-            save_chat_history(chat_history)  # Save the updated history
-            break
+                return
 
-    # Send a follow-up reply to the edited message
-    await after.reply("Memory updated", mention_author=False)
+    except Exception as e:
+        logging.error(f"Error processing message edit: {e}")
 
 """
 ==============================================================================================================================================================
@@ -949,7 +865,6 @@ async def restart(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=False)
 
-
 @bot.tree.command(name="join", description="Join the voice channel.")
 async def join(interaction: discord.Interaction):
     global tts_mode
@@ -1010,7 +925,7 @@ async def say(interaction: discord.Interaction, message: str):
             await interaction.response.send_message(message)
         else:
             # Generate TTS audio from the message
-            audio_path = await generate_tts(message, lang='en')
+            audio_path = await generate_tts(message)
 
             # Play the audio file
             voice_client.play(discord.FFmpegPCMAudio(audio_path), after=lambda e: print('done', e))
@@ -1110,7 +1025,12 @@ async def generate_video(interaction: discord.Interaction, prompt: str, num_fram
 # Define a route for the root URL
 @app.route('/')
 def hello_world():
-    return 'Hello, World!'
+    return 'Qubicon is now online!'
 
-# Run the bot
-bot.run(DISCORD_TOKEN)
+if __name__ == '__main__':
+    # Start Flask app in a new thread
+    flask_thread = threading.Thread(target=app.run(debug=True, port=3000))
+    flask_thread.start()
+
+    # Start Discord bot
+    bot.run(DISCORD_TOKEN)

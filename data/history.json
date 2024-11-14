@@ -1,22 +1,162 @@
 [
     {
-        "timestamp": "2024-11-14 14:24:54",
+        "timestamp": "2024-11-14 23:44:04",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
         "message": "hi",
-        "response": "Hello Franko.",
-        "message_id": 1306610811237826591
+        "response": "Hello Franko, how can I assist you today?",
+        "message_id": 1306751534041661461
     },
     {
-        "timestamp": "2024-11-14 14:24:58",
+        "timestamp": "2024-11-14 23:44:07",
         "user": {
             "id": 769979361297694720,
             "name": "franko__f"
         },
-        "message": "who are you",
-        "response": "I'm Qubicon, your AI bot in this Brick Rigs server. I was created by you, Franko, with the help of FTech's custom model.",
-        "message_id": 1306610829021675531
+        "message": "generate me a tts",
+        "response": "Hello Franko. \n\nHere's your TTS. \n\ntts:\"Hello and welcome, I am Qubicon, the friendly supercomputer. I'm here to help you with any Brick Rigs server tasks you might have. What can I do for you today?\"",
+        "message_id": 1306751548419866694
+    },
+    {
+        "timestamp": "2024-11-14 23:45:08",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "gen tts",
+        "response": "Hello Franko. \n\nHere's your TTS.\n\ntts:\"Hello, I'm Qubicon. What can I do for you today?\"",
+        "message_id": 1306751803844726804
+    },
+    {
+        "timestamp": "2024-11-14 23:47:11",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "generate me a tts",
+        "response": "Hello Franko. \n\nHere's your TTS.\ntts:\"Hello, I'm Qubicon. What can I do for you today?\"",
+        "message_id": 1306752318569709580
+    },
+    {
+        "timestamp": "2024-11-14 23:47:48",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "try agian",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306752471267282986
+    },
+    {
+        "timestamp": "2024-11-14 23:51:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "gen me a tts",
+        "response": "Hello Franko.\n\nHere's your TTS.\ntts:\"Hello, I'm Qubicon. What can I do for you today?\"",
+        "message_id": 1306753361026224250
+    },
+    {
+        "timestamp": "2024-11-14 23:51:24",
+        "user": {
+            "id": 941090511614275594,
+            "name": "_jayzgaming"
+        },
+        "message": "lie",
+        "response": "Hello JayzGaming. You're being dishonest.",
+        "message_id": 1306753381544755241
+    },
+    {
+        "timestamp": "2024-11-14 23:55:06",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "try again",
+        "response": "Hello Franko.\n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306754309584715776
+    },
+    {
+        "timestamp": "2024-11-14 23:56:20",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "do it agian",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306754621250994237
+    },
+    {
+        "timestamp": "2024-11-14 23:56:35",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "try again",
+        "response": "Hello Franko.\n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306754684874260500
+    },
+    {
+        "timestamp": "2024-11-14 23:56:56",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "again",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306754771075727411
+    },
+    {
+        "timestamp": "2024-11-14 23:58:04",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "again",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306755056594583694
+    },
+    {
+        "timestamp": "2024-11-15 00:03:14",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "hi",
+        "response": "Hello Franko, how can I assist you today?",
+        "message_id": 1306756360154910852
+    },
+    {
+        "timestamp": "2024-11-15 00:03:18",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "do it agian",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306756373580611646
+    },
+    {
+        "timestamp": "2024-11-15 00:03:53",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "try again",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306756521929085081
+    },
+    {
+        "timestamp": "2024-11-15 00:04:31",
+        "user": {
+            "id": 769979361297694720,
+            "name": "franko__f"
+        },
+        "message": "try again",
+        "response": "Hello Franko. \n\nHere's another TTS.\ntts:\"Hello, I'm Qubicon. Is there anything specific I can help you with today, Franko?\"",
+        "message_id": 1306756682046767104
     }
 ]
