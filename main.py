@@ -130,7 +130,7 @@ imgmodel = 1
 
 # Dev mode variable
 devmode = 1
-version = '2.6'
+version = '2.7'
 max_input_lenght = 500
 lockdown = False
 
