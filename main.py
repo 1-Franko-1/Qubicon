@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import aiohttp
 import io
+import base64
 from PIL import Image
 import sys  # Add this import at the beginning of your script
 import pyttsx3
@@ -25,12 +26,15 @@ import moviepy.editor as mp
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 import yt_dlp
 import urllib.parse
+from pathlib import Path
 from pydub import AudioSegment
 from threading import Thread
 import random
 from flask import Flask
 from elevenlabs.client import ElevenLabs
 from gtts import gTTS
+import string
+import re
 
 # Create a Flask app instance
 app = Flask(__name__)
@@ -114,14 +118,15 @@ chat_history = {}
 CHAT_HISTORY_FILE = "data/history.json"
 
 # Define the channel ID and user ID for special commands
-SPECIFIED_USER_ID = 769979361297694720  # Replace with the Discord ID of the user allowed to use the command
+admins = [769979361297694720, 1200274292768780519]  # Replace with the Discord ID of the user allowed to use the command
 role_id = 1278534191188803624  # Replace with the actual role ID
 tts_mode = False  # Default is text mode
 
 # Global temperature for the model
 model_temperature = 0.7  # Default value
 ttsmodel = 1
-textmodel = 2
+textmodel = 1
+imgmodel = 1
 
 # Dev mode variable
 devmode = 1
@@ -143,6 +148,7 @@ SYSTEM_MESSAGE = f"""
 You are Qubicon, an AI bot in a Brick Rigs server
 You were created by Franko (username: franko__f, userid: 769979361297694720).
 To get the messagers data read the whole system message that you are being given!
+Chat history guides responses.
 
 Rules:
 1. Say mute if you don't want to reply.
@@ -166,14 +172,15 @@ Info:
   - tts:"message": Generate TTS and send it in chat. (you can only make one per message) (example: tts:"The sun")
   - img:"prompt": Generate and send an image based on the prompt. (you can only make one per message) (example: img:"A image of the sun")
   - vid:"prompt": Generate and send an video based on the prompt. (you can only make one per message) (example: vid:"A video of the sun")
-  - blk:"userid": Block a user.
-  - ubk:"userid": Unblock a user.
-    - Make sure to put the commands at the end of your message and nothing after them or else they won't work!
+  - sta:"status": Set your profile's status.
+
+  - Make sure to put the commands at the end of your message also nothing after them or else they won't work!
   - Additional comments outside these commands are allowed.
-  - Make sure to use "" with the message/prompt/userid
-  - Do not put a space betweem tts: and " this also applies to: img, vid, blk, ubk!
+  - Make sure to use "" with the message/prompt/userid/status!
+  - Do not put a space betweem tts: and " this also applies to all of the commands!
   - For video do not say stuff like "A video showcasing" just say "showcasing" do not say stuff like video in the video prompt
   - You can use them all at the same time just not one more than once!
+  - You got free will to do any of those commands at any time!
 - Do not generate videos unless you really want/its required to as take a long time to make
 - Audio transcription guides your responses.
 - Image description guides your response.
@@ -370,29 +377,45 @@ class GeneralCrawler:
         {"role": "user", "content": f"message: {user_message}"}
     ]
 """
+def validate_history(history):
+    """Ensure history entries are correctly formatted."""
+    for entry in history:
+        if not isinstance(entry, dict):
+            continue
+        if 'role' not in entry or 'content' not in entry:
+            model_logger.warning(f"Invalid entry in history: {entry}")
+            continue
+    return [entry for entry in history if 'role' in entry and 'content' in entry]
 
-# Update the exception handling in handle_model_call function
-async def handle_model_call(name, user_message, username, time, userid, chanelid, guildname, channelname, image_description=None, scrapedresult=None, video_transcription=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None, textmodel=1):
+async def handle_model_call(messagedc, name, user_message, username, time, userid, chanelid, guildname, channelname, image_description=None, scrapedresult=None, video_transcription=None, audiotranscription=None, referenced_message=None, referenced_user=None, referenced_userid=None, history=None):
     """Handles the message and calls the model to process it."""
+    global textmodel
 
     reply_info = f"Replying to: {referenced_user}, Username: {referenced_userid}, Msg: {referenced_message}"
 
+    if len(user_message) > max_input_lenght:
+        return "Too long, please shorten your message!"
+
+    # Prepare and truncate the messages if needed
+    system_content = SYSTEM_MESSAGE + "\n +++ tell us about yourself!"
+    if len(system_content) > 2000:  # Example max length, adjust as needed
+        system_content = system_content[:2000]
+
+    user_content = f"name:{name}, msg:{user_message}, username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}"
+
+    # Validate history before adding it to the messages
+    validated_history = validate_history(history)
+
     if textmodel == 1:
-
-        if len(user_message) > max_input_lenght:
-            return "Too long, please shorten your message!"
-
-        # Prepare the messages for the model
         messages = [
-            {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
-            {"role": "user", "content": f"name:{name}, msg:{user_message}"}
-        ]
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content}
+        ] + validated_history
 
-        # Create the chat completion request
         try:
             chat_completion = client.chat.completions.create(
                 messages=messages,
-                model="llama-3.2-90b-text-preview",  # Adjust model as necessary
+                model="llama-3.1-70b-versatile",  # Adjust model as necessary
                 temperature=model_temperature  # Pass the temperature
             )
             response = chat_completion.choices[0].message.content
@@ -401,81 +424,140 @@ async def handle_model_call(name, user_message, username, time, userid, chanelid
             if len(response) > 2000:
                 response = response[:2000]
 
-            # Log only the important information
             model_logger.info(f"Response generated: {response[:50]}...")  # Log the start of the response for reference
+            chat_entry = [
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": response}
+            ]
+
+            chat_history.append(chat_entry)
+
+            # Save chat history
+            save_chat_history(chat_history)
             return response
+
         except groq.RateLimitError as e:
-            await bot.change_presence(activity=discord.Game(name="Limit hit see you in a bit!"))
-            return "Limit hit see you in a bit!"
+            textmodel = 2
+            await messagedc.channel.send("Switching to gpt-4o. History is unavailable with this model!")
+            response_exc = await handle_model_call(messagedc, name, user_message, username, time, userid, chanelid, guildname, channelname, image_description, scrapedresult, video_transcription, audiotranscription, referenced_message, referenced_user, referenced_userid)
+            return response_exc
         except Exception as e:
             model_logger.error(f"Error in model call: {e}")
             return "Error: Something went wrong during processing."
-    
-    elif textmodel == 2:
-        # Prepare the data for textmodel 2 request
-        messages = [
-            {"role": "system", "content": f"username:{username}, uid:{userid}, vt:{video_transcription}, website:{scrapedresult}, audio:{audiotranscription}, img:{image_description}, time:{time}, {reply_info}, g:{guildname}, c:{channelname}, cid:{chanelid}, guidlines:{SYSTEM_MESSAGE}, h:{chat_history}"},
-            {"role": "user", "content": f"name:{name}, msg:{user_message}"}
-        ]
 
-        # Format the URL and data for the POST request
-        url = "https://text.pollinations.ai/"
-        params = {
-            "seed": f"{random.randint(1, 10000)}",
-            "json": "true",
-            "model": "openai",
-            "system": json.dumps(messages[0]['content']),
-            "user": json.dumps(messages[1]['content'])
+    elif textmodel == 2:
+        url = 'https://text.pollinations.ai/'
+        headers = {
+            'Content-Type': 'application/json',
+        }
+        payload = {
+            "messages": [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            "seed": 42,
+            "jsonMode": True,
+            "model": "openai"
         }
 
         try:
-            # Send the request to Pollinations API
-            response = requests.get(url, params=params)
-            response.raise_for_status()  # Raise an exception for HTTP errors
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            chat_entry = [
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": response}
+            ]
 
-            # Parse the response from the API
-            generated_text = response.text
+            chat_history.append(chat_entry)
 
-            # Return the generated text
-            return generated_text
+            # Save chat history
+            save_chat_history(chat_history)
+
+            return response.text
+
         except requests.exceptions.RequestException as e:
-            model_logger.error(f"Error in Pollinations API call: {e}")
-            return "Error: Unable to process the request at this time."
+            print(f"HTTP Request failed: {e}")
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding failed: {e}. Raw response was: {response.text}")
+
+def custom_stablediffiusion_model_call(text_input):
+    # URL of the Flask server
+    url = "http://127.0.0.1:5000/gen_from_text"
+
+    # Send a POST request to the server with the text input
+    response = requests.post(url, json={"text": text_input})
+
+    # Check if the response was successful
+    if response.status_code != 200:
+        raise Exception(f"Failed to generate image. Status code: {response.status_code}")
+
+    # Extract base64-encoded image from the response
+    response_data = response.json()
+    base64_image = response_data.get("image")
+    
+    if not base64_image:
+        raise Exception("No image returned from the server")
+
+    # Decode the base64 string to bytes
+    img_data = base64.b64decode(base64_image)
+
+    # Generate a random filename
+    random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    file_name = f"downloads/img-bs64-{random_str}.png"
+
+    # Ensure the downloads directory exists
+    os.makedirs(os.path.dirname(file_name), exist_ok=True)
+
+    # Save the image to a file
+    with open(file_name, "wb") as img_file:
+        img_file.write(img_data)
+
+    # Return the file path
+    return Path(file_name).resolve()
 
 # Function to download an image from the API with retry mechanism
-async def generate_image(prompt, width=768, height=768, model='Flux-Pro', frame_num=0, seed=None, max_retries=3):
-    if not seed:
-        seed = random.randint(1, 10000)
+async def generate_image(prompt, width=768, height=768, model='Flux-Pro', frame_num=0, seed=None, max_retries=3, iscommand = False, progress_callback=None, useprogressbar = True):
+    global imgmodel
+    if imgmodel == 1:
+        if not seed:
+            seed = random.randint(1, 10000)
 
-    url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+        url = f"https://image.pollinations.ai/prompt/{prompt}?width={width}&height={height}&model={model}&seed={seed}"
+        
+        # Retry mechanism
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            if useprogressbar:
+                                # Update progress to 50% when download starts
+                                await progress_callback(50, 100)
+                            
+                            # Save the image
+                            img_data = await response.read()
+                            img_name = os.path.join('downloads', f"image-{frame_num}-{random.randint(100000000, 999999999)}.jpg")
+                            with open(img_name, 'wb') as file:
+                                file.write(img_data)
+                            
+                            if useprogressbar:
+                                # Update progress to 100% when completed
+                                await progress_callback(100, 100)
+                            return img_name
+                        else:
+                            print(f"Failed to download image with status {response.status}")
+            except Exception as e:
+                print(f"Error downloading image: {e}")
+
+            # Wait before retrying
+            attempt += 1
+            print(f"Retrying download for image, attempt {attempt}/{max_retries}...")
+            time.sleep(8)  # Wait for 2 seconds before retrying
+
+        return None
+    else:
+        return custom_stablediffiusion_model_call(prompt)
     
-    # Retry mechanism
-    attempt = 0
-    while attempt < max_retries:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        img_data = await response.read()
-                        # Saving the frame to the 'downloads' folder
-                        img_name = os.path.join('downloads', f"frame_{frame_num}-{random.randint(100000000, 999999999)}.jpg")
-                        with open(img_name, 'wb') as file:
-                            file.write(img_data)
-
-                        return img_name
-                    else:
-                        print(f"Failed to download frame {frame_num} with status {response.status}")
-        except Exception as e:
-            print(f"Error downloading frame {frame_num}: {e}")
-
-        # Wait before retrying
-        attempt += 1
-        print(f"Retrying download for frame {frame_num}, attempt {attempt}/{max_retries}...")
-        time.sleep(8)  # Wait for 2 seconds before retrying
-
-    print(f"Failed to download frame {frame_num} after {max_retries} attempts.")
-    return None
-
 async def make_elevenlabs_audio(text_to_say):
     output_file = f"tempfiles/output-elevenlabs-{random.randint(100000000, 999999999)}.mp3"
     
@@ -503,6 +585,11 @@ async def make_elevenlabs_audio(text_to_say):
     except Exception as e:
         # Check if the error is related to quota exceeded
         if 'quota_exceeded' in str(e):
+            ttsmodel = 2
+            output_file_exc = await generate_tts(text_to_say, ttsmodel)
+            return output_file_exc
+        
+        if 'detected_unusual_activity' in str(e):
             ttsmodel = 2
             output_file_exc = await generate_tts(text_to_say, ttsmodel)
             return output_file_exc
@@ -538,7 +625,8 @@ async def send_files_and_cleanup(message, botmsg, img_filename=None, tts_filenam
     if video_file_path:
         files_to_send.append(discord.File(video_file_path))
     
-    await message.reply(botmsg, files=files_to_send)
+    for i in range(0, len(botmsg), 2000):
+        await message.reply(botmsg, files=files_to_send[i:i + 2000])
 
     # Clean up
     if img_filename:
@@ -556,7 +644,7 @@ async def create_video_from_frames(prompt, use_progressbar, num_frames=30, fps=1
 
     # Create video frames
     for frame_num in range(num_frames):
-        frame_path = await generate_image(prompt, width, height, model, frame_num)
+        frame_path = await generate_image(prompt, width, height, model, frame_num, useprogressbar=False)
         if frame_path:
             print(f'Frame {frame_num} downloaded!')
             frame = cv2.imread(frame_path)
@@ -612,9 +700,12 @@ class ProgressBarView(View):
     async def update_progress(self, current_frame, total_frames):
         if self.progress_message:
             progress = int((current_frame / total_frames) * 100)
-            await self.progress_message.edit(content=f"Generating video... {progress}% Complete")
+            if progress == 100:
+                await self.progress_message.delete()
+            else:
+                await self.progress_message.edit(content=f"Generating... {progress}% Complete")
         else:
-            self.progress_message = await self.message.edit(content=f"Generating video... 0% Complete")
+            self.progress_message = await self.message.edit(content=f"Generating... 0% Complete")
 
 async def handle_tts_vc(tts_mode, botmsg, message, img_filename, tts_filename, video_file_path, num_frames, download_dir):
     if tts_mode:
@@ -645,10 +736,11 @@ async def on_message(message):
     try:
         global unallowedusers
 
-        if message.channel.id not in allowed_channels:
-            return
+        if message.guild is not None:
+            if message.channel.id not in allowed_channels:
+                return
 
-        if lockdown and message.author.id != SPECIFIED_USER_ID:
+        if lockdown and message.author.id not in admins:
             return
         
         if message.author.id in unallowedusers:
@@ -668,7 +760,7 @@ async def on_message(message):
                 await message.channel.send("You can only send one message per minute. Please wait before sending another.")
                 return
 
-        if message.author.id == SPECIFIED_USER_ID and message.channel.id not in allowed_channels:
+        if message.author.id in admins and message.channel.id not in allowed_channels:
             if message.content.startswith('^QUBIT^'):
                 allowed_channels.append(message.channel.id)
                 logging.info(f"Added channel {message.channel.id} to allowed_channels: {allowed_channels}")
@@ -676,7 +768,7 @@ async def on_message(message):
                 return
 
         if message.content.lower() in ['turn off qubicon', 'pull the plug on qubi', 'send qubi to london']:
-            if message.author.id == SPECIFIED_USER_ID:
+            if message.author.id in admins:
                 if startup_channel:
                     embed = discord.Embed(
                         title="Qubicon Offline!",
@@ -779,45 +871,36 @@ async def on_message(message):
      
             userid = message.author.id
             username = message.author.name
-            chanelid = message.channel.id
-            guildname = message.guild.name
-            channelname = message.channel.name
+
+            # Filter chat history if the message is in DM
+            if message.guild is None:
+                chat_history_filtered = [entry for entry in chat_history if isinstance(entry, dict) and "content" in entry and f"uid:{userid}" in entry["content"]]
+            else:
+                chat_history_filtered = chat_history
 
             response = await handle_model_call(
+                messagedc=message,
                 name=message.author.display_name,
                 user_message=user_message,
                 username=username,
                 time=time,
                 userid=userid,
-                chanelid=chanelid,
-                guildname=guildname,
-                channelname=channelname,
+                chanelid=message.channel.id if message.guild else "DM's",
+                guildname=message.guild.name if message.guild else "DM's",
+                channelname=message.channel.name if message.guild else "DM's",
                 image_description=image_description,
                 scrapedresult=scrapedresult,
                 video_transcription=video_transcription,
                 audiotranscription=audio_transcription,
                 referenced_message=referenced_message,
                 referenced_user=referenced_user,
-                referenced_userid=referenced_userid
+                referenced_userid=referenced_userid,
+                history=chat_history_filtered
             )
 
             # Log the message and response
             logging.info(f"Message: {user_message}")
             logging.info(f"Bot message: {response}")
-
-            # Add message ID to each chat entry for easy lookup in case of edits
-            chat_entry = {
-                "timestamp": time,
-                "user": {"id": userid, "name": username},
-                "message": user_message,
-                "response": response,
-                "message_id": message.id  # Store the message ID
-            }
-
-            chat_history.append(chat_entry)
-
-            # Save chat history
-            save_chat_history(chat_history)
 
             lower_response = response.lower()
 
@@ -827,7 +910,7 @@ async def on_message(message):
             elif not lower_response:
                 return
 
-            if 'img:' in lower_response or 'tts:' in lower_response or 'vid:' in lower_response or 'blk:' in lower_response or 'ubk:' in lower_response:
+            if 'img:' in lower_response or 'tts:' in lower_response or 'vid:' in lower_response or 'sta' in lower_response or 'des' in lower_response:
                 img_prompt = None
                 tts_text = None
                 botmsg = lower_response
@@ -837,28 +920,50 @@ async def on_message(message):
                 video_file_path = None
 
                 if 'img:' in lower_response:
-                    img_prompt = lower_response.split('img:"')[1].split('"')[0].strip()
-                    botmsg = botmsg.split('img:"')[0].strip('"')
+                    # Extract image prompt from the response string
+                    img_prompt = response.split('img:"')[1].split('"')[0].strip()
+                    botmsg = response.split('img:"')[0].strip('"')
+                    
+                    # Log the generated prompt for debugging
                     logging.info(f"Generating image with prompt: {img_prompt}")
-                    img_filename = await generate_image(img_prompt, width=1280, height=720, model='flux')
+                    
+                    progress_view = ProgressBarView()
+
+                    # Send an initial message to hold the place for progress updates
+                    progress_message = await message.channel.send("Generating image... 0% Complete")
+                    progress_view.message = progress_message
+
+                    # Generate image with the extracted prompt
+                    img_filename = await generate_image(img_prompt, width=1280, height=720, progress_callback=progress_view.update_progress)
+
+                """ cut out for reasons
+                - blk:"userid": Block a user.
+                - unb:"userid": Unblock a user.
+                or 'blk:' in lower_response or 'unb:' in lower_response
 
                 if 'blk:' in lower_response:
                     try:
-                        userid_blk = lower_response.split('blk:"')[1].split('"')[0].strip()
-                        botmsg = lower_response.split('blk:"')[0].strip('"')
-                        if userid_blk not in unallowedusers:
-                            unallowedusers.append(userid_blk)
+                        userid_blk = lower_response.split('blk:"')[1].split('"')[0].strip()  # Get the user ID
+                        botmsg = lower_response.split('blk:"')[0].strip('"')  # Get the bot message part
+                        if int(userid_blk) not in unallowedusers:
+                            unallowedusers.append(int(userid_blk))
                     except IndexError:
-                        print("Error: Incorrect format in 'blk:' response.")
+                        print("Error: Incorrect format in 'blk:' response.") 
 
-                if 'ubk:' in lower_response:
+                if 'unb:' in lower_response:
                     try:
-                        userid_ubk = lower_response.split('ubk:"')[1].split('"')[0].strip()
-                        botmsg = lower_response.split('ubk:"')[0].strip('"')
-                        if userid_ubk in unallowedusers:
-                            unallowedusers.remove(userid_ubk)
-                    except (IndexError, ValueError):
-                        print("Error: Incorrect format in 'ubk:' response or user not found.")
+                        userid_ubk = lower_response.split('ubk:"')[1].split('"')[0].strip()  # Get the user ID
+                        botmsg = lower_response.split('ubk:"')[0].strip('"')  # Get the bot message part
+                        if int(userid_ubk) in unallowedusers:
+                            unallowedusers.remove(int(userid_ubk))
+                    except IndexError:
+                        print("Error: Incorrect format in 'ubk:' response.")
+                """
+
+                if 'sta:' in lower_response:
+                    status = lower_response.split('sta:"')[1].split('"')[0].strip()  # Get the status prompt
+                    botmsg = lower_response.split('sta:"')[0].strip('"')  # Get the bot message part
+                    await bot.change_presence(status=discord.Status.online, activity=discord.CustomActivity(name=status))
 
                 if 'tts:' in lower_response:
                     tts_text = lower_response.split('tts:"')[1].split('"')[0].strip()
@@ -900,7 +1005,8 @@ async def on_message(message):
             elif tts_mode:
                 await handle_tts_vc(tts_mode, response, message, img_filename=None, tts_filename=None, video_file_path=None, num_frames=None, download_dir=None)
             else:
-                await message.reply(response)
+                for i in range(0, len(response), 2000):
+                    await message.reply(response[i:i + 2000])
 
     except CommandOnCooldown:
         await message.channel.send("Please wait 3 seconds before sending another message.")
@@ -911,8 +1017,9 @@ async def on_message(message):
 # Add an event handler to process message edits
 @bot.event
 async def on_message_edit(before, after):
-    if before.channel.id not in allowed_channels:
-        return
+    if before.guild is not None:
+        if before.channel.id not in allowed_channels:
+            return
 
     if before.author == bot.user:
         return  # Ignore bot's own messages
@@ -948,7 +1055,7 @@ async def on_message_edit(before, after):
 
 @bot.tree.command(name="temp", description="Change the temperature of the model's response.")
 async def temp_command(interaction: discord.Interaction, new_temp: float):
-    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can change the temperature
+    if interaction.user.id in admins:  # Only the specified user can change the temperature
         if 0 <= new_temp <= 2:  # Ensure the temperature is within a valid range
             model_temperature = new_temp
             await interaction.response.send_message(f"Model temperature has been set to {model_temperature}!", ephemeral=False)
@@ -961,7 +1068,7 @@ async def temp_command(interaction: discord.Interaction, new_temp: float):
 async def change_tts_model(interaction: discord.Interaction, new_ttsmodel: int):
     valid_model_indices = [1, 2]  # Define valid model indices
 
-    if interaction.user.id == SPECIFIED_USER_ID:
+    if interaction.user.id in admins:
         if new_ttsmodel in valid_model_indices:  # Check if the input is valid
             global ttsmodel  # Ensure the variable is globally accessible if needed
             ttsmodel = new_ttsmodel
@@ -977,7 +1084,7 @@ async def change_tts_model(interaction: discord.Interaction, new_ttsmodel: int):
 async def change_text_model(interaction: discord.Interaction, new_textmodel: int):
     valid_model_indices = [1, 2]  # Define valid model indices
 
-    if interaction.user.id == SPECIFIED_USER_ID:
+    if interaction.user.id in admins:
         if new_textmodel in valid_model_indices:  # Check if the input is valid
             global textmodel  # Ensure the variable is globally accessible if needed
             textmodel = new_textmodel
@@ -989,10 +1096,37 @@ async def change_text_model(interaction: discord.Interaction, new_textmodel: int
     else:
         await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
 
+@bot.tree.command(name="imgmodel", description="Change the image model.")
+async def change_image_model(interaction: discord.Interaction, new_imgmodel: int):
+    valid_model_indices = [1, 2]  # Define valid model indices
+
+    if interaction.user.id in admins:
+        if new_imgmodel in valid_model_indices:  # Check if the input is valid
+            global imgmodel  # Ensure the variable is globally accessible if needed
+            imgmodel = new_imgmodel
+            await interaction.response.send_message(f"Img model successfully set to {imgmodel}!", ephemeral=False)
+        else:
+            await interaction.response.send_message(
+                f"Invalid model index. Please provide a value from {valid_model_indices}.", ephemeral=False
+            )
+    else:
+        await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+
+@bot.tree.command(name="addqubiaccess", description="Add access to qubicon's dev commands!")
+async def addqubiaccess(interaction: discord.Interaction, user: discord.User):
+    if interaction.user.id not in admins:
+        return
+
+    if user.id not in admins:
+        admins.append(user.id)
+        await interaction.response.send_message(f"{user.mention} has been added to the admin's list.", ephemeral=False)
+    else:
+        await interaction.response.send_message(f"{user.mention} is already in the admin's list.", ephemeral=True)
+
 @bot.tree.command(name="turnoff", description="Brutally murder qubicon.")
 async def turnoff(interaction: discord.Interaction):
     global startup_channel
-    if interaction.user.id == SPECIFIED_USER_ID:  # Check if the user is the specified one
+    if interaction.user.id in admins:  # Check if the user is the specified one
         if startup_channel:
             # Disconnect from voice channel if connected
             if interaction.guild.voice_client:
@@ -1014,7 +1148,7 @@ async def turnoff(interaction: discord.Interaction):
 
 @bot.tree.command(name="rstmemory", description="Reset the bot's memory (clear chat history).")
 async def rstmemory(interaction: discord.Interaction):
-    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can reset the memory
+    if interaction.user.id in admins:  # Only the specified user can reset the memory
         # Clear the chat history in memory
         global chat_history
         chat_history = []
@@ -1026,7 +1160,7 @@ async def rstmemory(interaction: discord.Interaction):
 
 @bot.tree.command(name="restart", description="Restart the bot.")
 async def restart(interaction: discord.Interaction):
-    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can restart the bot
+    if interaction.user.id in admins:  # Only the specified user can restart the bot
         # Disconnect from voice channel if connected
         if interaction.guild.voice_client:
             await interaction.guild.voice_client.disconnect()
@@ -1047,7 +1181,7 @@ async def restart(interaction: discord.Interaction):
 async def join(interaction: discord.Interaction):
     global tts_mode
     if lockdown:
-        if interaction.user.id != SPECIFIED_USER_ID:
+        if interaction.user.id not in admins:
             return
     # Check if the user is in a voice channel
     if interaction.user.voice:
@@ -1062,7 +1196,7 @@ async def join(interaction: discord.Interaction):
 async def leave(interaction: discord.Interaction):
     global tts_mode
     if lockdown:
-        if interaction.user.id != SPECIFIED_USER_ID:
+        if interaction.user.id not in admins:
             return
     if interaction.guild.voice_client:
         await interaction.guild.voice_client.disconnect()
@@ -1074,7 +1208,7 @@ async def leave(interaction: discord.Interaction):
 @bot.tree.command(name="lockdown", description="Toggle the lockdown mode for the bot's responses.")
 async def lockdown_command(interaction: discord.Interaction):
     global lockdown
-    if interaction.user.id == SPECIFIED_USER_ID:  # Only the specified user can use this command
+    if interaction.user.id in admins:  # Only the specified user can use this command
         lockdown = not lockdown  # Toggle the lockdown status
         status = "enabled" if lockdown else "disabled"
         await interaction.response.send_message(f"Lockdown mode has been {status}.", ephemeral=False)
@@ -1101,7 +1235,7 @@ async def add_unallowed_user(interaction: discord.Interaction, user: discord.Use
 @bot.tree.command(name="say", description="Make the bot say something in the voice channel.")
 async def say(interaction: discord.Interaction, message: str):
     if lockdown:
-        if interaction.user.id != SPECIFIED_USER_ID:
+        if interaction.user.id not in admins:
             return
     if interaction.guild.voice_client:  # Check if bot is in a voice channel
         voice_client = interaction.guild.voice_client
@@ -1131,7 +1265,7 @@ async def say(interaction: discord.Interaction, message: str):
 @bot.tree.command(name="play", description="Play an audio file in the voice channel.")
 async def play(interaction: discord.Interaction, url: str):
     if lockdown:
-        if interaction.user.id != SPECIFIED_USER_ID:
+        if interaction.user.id not in admins:
             return
 
     if interaction.guild.voice_client:  # Check if bot is in a voice channel
@@ -1160,21 +1294,34 @@ async def play(interaction: discord.Interaction, url: str):
     else:
         await interaction.response.send_message("I need to be in a voice channel to play audio.", ephemeral=False)
 
-@bot.tree.command(name="gen_img", description="Generate a video from a prompt")
+# Slash command to generate the image with the prompt
+@bot.tree.command(name="gen_img", description="Generate an image from a prompt")
 async def generate_img(interaction: discord.Interaction, prompt: str):
     # Defer the response to prevent timeout
     await interaction.response.defer()
 
-    try:
-        # Generate the image (await if the function is async)
-        generatedimage = await generate_image(prompt) if asyncio.iscoroutinefunction(generate_image) else generate_image(prompt)
+    progress_view = ProgressBarView()
 
-        # Send the generated image as a follow-up message
-        await interaction.followup.send(file=discord.File(generatedimage))
-    finally:
-        # Clean up the generated file
-        if os.path.exists(generatedimage):
-            os.remove(generatedimage)
+    # Send an initial message to hold the place for progress updates
+    progress_message = await interaction.followup.send("Generating image... 0% Complete")
+    progress_view.message = progress_message
+
+    try:
+        # Send the progress message to update during image generation
+        generatedimage = await generate_image(prompt, progress_callback=progress_view.update_progress)
+
+        if generatedimage:
+            # Send the generated image as a follow-up message
+            await interaction.followup.send(file=discord.File(generatedimage))
+
+            # Clean up the generated file
+            if os.path.exists(generatedimage):
+                os.remove(generatedimage)
+        else:
+            await interaction.send_message("Image generation failed.")
+    except Exception as e:
+        logging.error(f"Error in generating image: {e}")
+        await interaction.followup.send("An error occurred while generating the image.")
 
 @bot.tree.command(name="clear_bot_messages", description="Deletes all bot messages in this channel (DM only).")
 async def clear_bot_messages(interaction: discord.Interaction):
